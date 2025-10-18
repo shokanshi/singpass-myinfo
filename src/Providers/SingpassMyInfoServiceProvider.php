@@ -2,36 +2,30 @@
 
 namespace Shokanshi\SingpassMyInfo\Providers;
 
-use Illuminate\Support\ServiceProvider;
 use Laravel\Socialite\Facades\Socialite;
 use Shokanshi\SingpassMyInfo\Services\Socialites\SingpassProvider;
+use Spatie\LaravelPackageTools\Package;
+use Spatie\LaravelPackageTools\PackageServiceProvider;
 
-class SingpassMyInfoServiceProvider extends ServiceProvider
+class SingpassMyInfoServiceProvider extends PackageServiceProvider
 {
-    public function register(): void
+    public function configurePackage(Package $package): void
     {
-        // merge package config
-        $this->mergeConfigFrom(
-            __DIR__.'/../../config/singpass-myinfo.php',
-            'singpass-myinfo'
-        );
+        /*
+         * This class is a Package Service Provider
+         *
+         * More info: https://github.com/spatie/laravel-package-tools
+         */
+        $package
+            ->name('singpass-myinfo')
+            ->hasConfigFile()
+            ->hasRoute('web');
     }
 
-    public function boot(): void
+    public function registeringPackage(): void {}
+
+    public function bootingPackage(): void
     {
-        // routes
-        $this->loadRoutesFrom(__DIR__.'/../../routes/web.php');
-
-        // views (optional)
-        // $this->loadViewsFrom(__DIR__.'/../resources/views', 'singpass-myinfo');
-
-        // publishables (optional)
-        if ($this->app->runningInConsole()) {
-            $this->publishes([
-                __DIR__.'/../../config/singpass-myinfo.php' => config_path('singpass-myinfo.php'),
-            ], 'singpass-myinfo-config');
-        }
-
         Socialite::extend('singpass', function ($app) {
             $config = $app['config']['singpass-myinfo'];
 
