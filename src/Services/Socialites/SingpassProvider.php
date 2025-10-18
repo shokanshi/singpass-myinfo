@@ -22,6 +22,7 @@ use Jose\Component\Checker\IssuedAtChecker;
 use Jose\Component\Checker\IssuerChecker;
 use Jose\Component\Core\AlgorithmManager;
 use Jose\Component\Core\AlgorithmManagerFactory;
+use Jose\Component\Core\JWK;
 use Jose\Component\Core\JWKSet;
 use Jose\Component\Encryption\Algorithm\ContentEncryption\A256CBCHS512;
 use Jose\Component\Encryption\Algorithm\ContentEncryption\A256GCM;
@@ -44,14 +45,64 @@ use Jose\Component\Signature\Serializer\JWSSerializerManager;
 use Laravel\Socialite\Two\AbstractProvider;
 use Laravel\Socialite\Two\ProviderInterface;
 use Laravel\Socialite\Two\User;
+use SensitiveParameter;
 use Shokanshi\SingpassMyInfo\Exceptions\JwtDecodeFailedException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwtPayloadException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassJwksException;
+use stdClass;
 use Symfony\Component\Clock\NativeClock;
 
 class SingpassProvider extends AbstractProvider implements ProviderInterface
 {
-    // Return an Authorization Endpoint
+    private string $signingKey = '';
+
+    private string $decryptionKey = '';
+
+    /**
+     * Instead of using a pem file, you can set the content of the pem file here. Great for multitenancy application
+     */
+    public function setSigningKey(
+        #[SensitiveParameter]
+        string $signingKey
+    ): self {
+        $this->signingKey = $signingKey;
+
+        return $this;
+    }
+
+    /**
+     * Instead of using a pem file, you can set the content of the pem file here. Great for multitenancy application
+     */
+    public function setDecryptionKey(
+        #[SensitiveParameter]
+        string $decryptionKey
+    ): self {
+        $this->decryptionKey = $decryptionKey;
+
+        return $this;
+    }
+
+    /**
+     * You can directly update the client id bypassing config file. Great for multitenancy application
+     */
+    public function setClientId(string $clientId): self
+    {
+        $this->clientId = $clientId;
+
+        return $this;
+    }
+
+    /**
+     * You can directly update the redirect url bypassing config file. Great for multitenancy application
+     */
+    public function setRedirectUrl(string $redirectUrl): self
+    {
+        $this->redirectUrl = $redirectUrl;
+
+        return $this;
+    }
+
+    // Return an Authorization Endpoint that will be used to redirect to Singpass
     protected function getAuthUrl($state)
     {
         $config = $this->getOpenIDConfiguration();
@@ -66,7 +117,7 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         // Singpass uses pkce and nonce
         return $this->enablePKCE()->with([
             'nonce' => (string) Str::uuid(),
-        ])->buildAuthUrlFromBase($config['authorization_endpoint'], $this->request->session()->get('state') ?? '');
+        ])->buildAuthUrlFromBase($config['authorization_endpoint'], $state);
     }
 
     protected function getTokenUrl()
@@ -90,9 +141,9 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
                 ->post($this->getTokenUrl(), [
                     'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
                     'code' => $code,
-                    'client_id' => config('singpass.client_id'),
+                    'client_id' => $this->clientId,
                     'grant_type' => 'authorization_code',
-                    'redirect_uri' => config('singpass.redirect'),
+                    'redirect_uri' => $this->redirectUrl,
                     'client_assertion' => $clientAssertion,
                     'code_verifier' => $this->request->session()->get('code_verifier'),
                 ]);
@@ -117,10 +168,9 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
     public function generateClientAssertion()
     {
         $config = $this->getOpenIDConfiguration();
-        $signingKeyPassphrase = config('singpass.signing_key_passphrase');
 
-        // import signature signing key
-        $signingKey = JWKFactory::createFromKeyFile('file://'.base_path(config('singpass.signing_key')), $signingKeyPassphrase);
+        $signingJwk = $this->getSigningJwk();
+
         $algorithmFactory = new AlgorithmManagerFactory;
 
         // initiate the algorithm aliases
@@ -134,18 +184,20 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         $algorithmManager = new AlgorithmManager($algorithmFactory->all());
 
         $jwsBuilder = new JWSBuilder($algorithmManager);
+
         // JWT issue timestamp
         $issuedAt = now();
+
         // build jwt
         $jwt = $jwsBuilder->create()
             ->withPayload(json_encode([
-                'sub' => config('singpass.client_id'),
+                'sub' => $this->clientId,
                 'aud' => $config['issuer'],
-                'iss' => config('singpass.client_id'),
+                'iss' => $this->clientId,
                 'iat' => $issuedAt->unix(),
                 'exp' => $issuedAt->addMinutes(2)->unix(),
             ])) // insert claims data
-            ->addSignature($signingKey, ['typ' => 'JWT', 'alg' => 'ES256']) // sign it and add the JWS protected header
+            ->addSignature($signingJwk, ['typ' => 'JWT', 'alg' => 'ES256']) // sign it and add the JWS protected header
             ->build();
         $serializer = new CompactSerializer; // The serializer
 
@@ -156,12 +208,9 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
     }
 
     /**
-     * The id token which is a JWE that is needed to decrypt
-     *
-     * @param  string  $idToken
-     * @return array|string
+     * The token which is a JWE that need to be decrypted to retrieve MyInfo
      */
-    protected function getUserByToken($token)
+    protected function getUserByToken($token): array
     {
         // This is a JWS, use the new verification logic
         Log::info('Processing JWS token.');
@@ -250,14 +299,13 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         $clock = new NativeClock;
 
         $config = $this->getOpenIDConfiguration();
-        $aud = config('singpass.client_id');
         $aud = $config['userinfo_endpoint'];
 
         $claimCheckerManager = new ClaimCheckerManager([
             new AudienceChecker($aud),
             new IssuedAtChecker($clock, 5),
             new ExpirationTimeChecker($clock, 5),
-            new IssuerChecker([config('singpass.domain')]),
+            new IssuerChecker([config('singpass-myinfo.domain')]),
         ]);
 
         try {
@@ -296,15 +344,13 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
             $contentEncryptionAlgorithmManager,
         );
 
-        $decryptionKeyPassphrase = config('singpass.decryption_key_passphrase');
+        $decryptionJwk = $this->getDecryptionJwk();
 
-        // import decryption key
-        $jwk = JWKFactory::createFromKeyFile('file://'.base_path(config('singpass.decryption_key')), $decryptionKeyPassphrase);
         $serializerManager = new JWESerializerManager([new \Jose\Component\Encryption\Serializer\CompactSerializer]);
         $jwe = $serializerManager->unserialize($idToken);
 
         // if decryption is success return the decrypted payload
-        if ($decrypter->decryptUsingKey($jwe, $jwk, 0)) {
+        if ($decrypter->decryptUsingKey($jwe, $decryptionJwk, 0)) {
             return $jwe->getPayload();
         }
 
@@ -358,7 +404,7 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         if (Cache::has('singpassOpenIDConfig')) {
             return Cache::get('singpassOpenIDConfig');
         }
-        $response = $this->getHttpClient()->get(config('singpass.well_known_configuration_url'), [
+        $response = $this->getHttpClient()->get(config('singpass-myinfo.well_known_configuration_url'), [
             'headers' => ['Accept' => 'application/json'],
         ]);
         $openIDConfig = json_decode($response->getBody(), true);
@@ -368,13 +414,14 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         return $openIDConfig;
     }
 
-    public function verifyTokenSignature($token)
+    public function verifyTokenSignature($token): stdClass|bool
     {
-
         $config = $this->getOpenIDConfiguration();
+
         // load Singpass JWKS
         $singpassJWKS = $this->retrieveSingpassVerificationKey();
         $jwks = JWKSet::createFromJson($singpassJWKS);
+
         // select Signature key
         $verificationKey = $jwks->selectKey('sig');
 
@@ -418,11 +465,14 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         }
     }
 
-    public function getMyInfoJWE(string $token)
+    /**
+     * Retrieve MyInfo JWE from Singpass
+     */
+    public function getMyInfoJWE(string $token): string
     {
-        $config = $this->getOpenIDConfiguration();
-
         try {
+            $config = $this->getOpenIDConfiguration();
+
             $response = $this->getHttpClient()
                 ->get($config['userinfo_endpoint'], [
                     'headers' => [
@@ -438,5 +488,49 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
             Log::error('Unable to retrieve Singpass JWKS', $errorResponse);
             abort(Response::HTTP_BAD_GATEWAY, 'Unable to login using Singpass right now');
         }
+    }
+
+    public function getSigningJwk(): JWK
+    {
+        $signingKeyPassphrase = config('singpass-myinfo.signing_key_passphrase');
+
+        $additionalValues = [
+            'use' => 'sig', 'alg' => 'ES256', 'kid' => 'my-sig-key',
+        ];
+
+        // import signature signing key
+        if ($this->signingKey) {
+            $jwk = JWKFactory::createFromKey($this->signingKey, $signingKeyPassphrase, $additionalValues);
+        } else {
+            $jwk = JWKFactory::createFromKeyFile('file://'.base_path(config('singpass-myinfo.signing_key_file')), $signingKeyPassphrase, $additionalValues);
+        }
+
+        return $jwk;
+    }
+
+    public function getDecryptionJwk(): JWK
+    {
+        $decryptionKeyPassphrase = config('singpass-myinfo.decryption_key_passphrase');
+
+        $additionalValues = [
+            'use' => 'enc', 'alg' => 'ECDH-ES+A256KW', 'kid' => 'my-enc-key',
+        ];
+
+        // import decryption key
+        if ($this->decryptionKey) {
+            $jwk = JWKFactory::createFromKey($this->decryptionKey, $decryptionKeyPassphrase, $additionalValues);
+        } else {
+            $jwk = JWKFactory::createFromKeyFile('file://'.base_path(config('singpass-myinfo.decryption_key_file')), $decryptionKeyPassphrase, $additionalValues);
+        }
+
+        return $jwk;
+    }
+
+    public function generateJwksForSingpassPortal(): array
+    {
+        $jwks['keys'][] = $this->getSigningJwk()->toPublic();
+        $jwks['keys'][] = $this->getDecryptionJwk()->toPublic();
+
+        return $jwks;
     }
 }
