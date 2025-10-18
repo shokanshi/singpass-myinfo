@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Socialites;
+namespace Shokanshi\SingpassMyInfo\Services\Socialites;
 
 use Exception;
 use GuzzleHttp\Exception\ClientException;
@@ -85,10 +85,6 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
 
             $clientAssertion = $this->generateClientAssertion();
 
-            // $code = Request::input('code');
-            // $state = Request::input('state'); // need to validate this for csrf attack
-            // $codeVerifier = Request::cookie('code_verifier');
-
             $response = Http::bodyFormat('form_params')
                 ->contentType('application/x-www-form-urlencoded; charset=ISO-8859-1')
                 ->post($this->getTokenUrl(), [
@@ -103,14 +99,10 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
 
             $responseBody = json_decode($response->getBody(), true);
 
-            // due to on next method call getUserByToken only extract the key field
-            // which is access token so we need to replace the value of access token to id_token
-            // $responseBody['access_token'] = $responseBody['id_token']; // comment this out for MyInfo
-
             return $responseBody;
         } catch (ClientException $requestException) {
             Log::error($requestException->getMessage());
-            abort(Response::HTTP_BAD_REQUEST, 'Invalid parameter pass in while requesting singpass token');
+            abort(Response::HTTP_BAD_REQUEST, 'Invalid parameter pass in while requesting Singpass token');
         } catch (ServerException $guzzleException) {
             // catch if there any internal server error occurred at singpass
             $errorResponse = $guzzleException->getResponse()->getBody()->getContents();
@@ -180,8 +172,6 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         $this->verifyPayload($payload);
 
         $jwe = $this->getMyInfoJWE($token);
-
-        // **************************************
 
         // decrypt the JWE
         $content = $this->decryptJWE($jwe);
@@ -263,14 +253,12 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         $aud = config('singpass.client_id');
         $aud = $config['userinfo_endpoint'];
 
-        $claimCheckerManager = new ClaimCheckerManager(
-            [
-                new AudienceChecker($aud),
-                new IssuedAtChecker($clock, 5),
-                new ExpirationTimeChecker($clock, 5),
-                new IssuerChecker([config('singpass.domain')]),
-            ]
-        );
+        $claimCheckerManager = new ClaimCheckerManager([
+            new AudienceChecker($aud),
+            new IssuedAtChecker($clock, 5),
+            new ExpirationTimeChecker($clock, 5),
+            new IssuerChecker([config('singpass.domain')]),
+        ]);
 
         try {
             $claimCheckerManager->check($payload);
