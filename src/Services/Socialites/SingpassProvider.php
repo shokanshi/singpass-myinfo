@@ -54,33 +54,7 @@ use Symfony\Component\Clock\NativeClock;
 
 class SingpassProvider extends AbstractProvider implements ProviderInterface
 {
-    private string $signingKey = '';
-
-    private string $decryptionKey = '';
-
-    /**
-     * Instead of using a pem file, you can set the content of the pem file here. Great for multitenancy application
-     */
-    public function setSigningKey(
-        #[SensitiveParameter]
-        string $signingKey
-    ): self {
-        $this->signingKey = $signingKey;
-
-        return $this;
-    }
-
-    /**
-     * Instead of using a pem file, you can set the content of the pem file here. Great for multitenancy application
-     */
-    public function setDecryptionKey(
-        #[SensitiveParameter]
-        string $decryptionKey
-    ): self {
-        $this->decryptionKey = $decryptionKey;
-
-        return $this;
-    }
+    protected string $clientPrivateKey = '';
 
     /**
      * You can directly update the client id bypassing config file. Great for multitenancy application
@@ -98,6 +72,51 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
     public function setRedirectUrl(string $redirectUrl): self
     {
         $this->redirectUrl = $redirectUrl;
+
+        return $this;
+    }
+
+    public function setClientPrivateKeyPassphrase(
+        #[SensitiveParameter]
+        string $passphrase
+    ): self {
+        config(['singpass-myinfo.client_private_key_passphrase' => $passphrase]);
+
+        return $this;
+    }
+
+    /**
+     * Instead of using a pem file, you can set the content of the pem file here. Great for multitenancy application
+     * If this property is set, the private key file will be ignored
+     */
+    public function setClientPrivateKey(
+        #[SensitiveParameter]
+        string $clientPrivateKey
+    ): self {
+        $this->clientPrivateKey = $clientPrivateKey;
+
+        return $this;
+    }
+
+    public function setClientPrivateKeyFile(
+        #[SensitiveParameter]
+        string $file
+    ): self {
+        config(['singpass-myinfo.client_private_key_file' => $file]);
+
+        return $this;
+    }
+
+    public function setDomain(string $domain): self
+    {
+        config(['singpass-myinfo.domain' => $domain]);
+
+        return $this;
+    }
+
+    public function setOpenIdDiscoveryUrl(string $url): self
+    {
+        config(['singpass-myinfo.openid_discovery_url' => $url]);
 
         return $this;
     }
@@ -165,7 +184,7 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
     }
 
     // A Client Assertion which replace the need of client secret
-    public function generateClientAssertion()
+    private function generateClientAssertion()
     {
         $config = $this->getOpenIDConfiguration();
 
@@ -278,7 +297,10 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         return json_decode($jws->getPayload(), true);
     }
 
-    public function getSingpassJwks(): JWKSet
+    /**
+     * retrieve the jwks from Singpass
+     */
+    private function getSingpassJwks(): JWKSet
     {
         try {
             $config = $this->getOpenIDConfiguration();
@@ -404,7 +426,7 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         if (Cache::has('singpassOpenIDConfig')) {
             return Cache::get('singpassOpenIDConfig');
         }
-        $response = $this->getHttpClient()->get(config('singpass-myinfo.well_known_configuration_url'), [
+        $response = $this->getHttpClient()->get(config('singpass-myinfo.openid_discovery_url'), [
             'headers' => ['Accept' => 'application/json'],
         ]);
         $openIDConfig = json_decode($response->getBody(), true);
@@ -414,7 +436,7 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         return $openIDConfig;
     }
 
-    public function verifyTokenSignature($token): stdClass|bool
+    private function verifyTokenSignature($token): stdClass|bool
     {
         $config = $this->getOpenIDConfiguration();
 
@@ -447,7 +469,7 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
      *
      * @throws GuzzleException
      */
-    public function retrieveSingpassVerificationKey(): string
+    private function retrieveSingpassVerificationKey(): string
     {
         $config = $this->getOpenIDConfiguration();
         try {
@@ -468,7 +490,7 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
     /**
      * Retrieve MyInfo JWE from Singpass
      */
-    public function getMyInfoJWE(string $token): string
+    private function getMyInfoJWE(string $token): string
     {
         try {
             $config = $this->getOpenIDConfiguration();
@@ -490,40 +512,40 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         }
     }
 
-    public function getSigningJwk(): JWK
+    private function getSigningJwk(): JWK
     {
-        $signingKeyPassphrase = config('singpass-myinfo.signing_key_passphrase');
-
-        $additionalValues = [
-            'use' => 'sig', 'alg' => 'ES256', 'kid' => 'my-sig-key',
-        ];
-
-        // import signature signing key
-        if ($this->signingKey) {
-            $jwk = JWKFactory::createFromKey($this->signingKey, $signingKeyPassphrase, $additionalValues);
-        } else {
-            $jwk = JWKFactory::createFromKeyFile('file://'.base_path(config('singpass-myinfo.signing_key_file')), $signingKeyPassphrase, $additionalValues);
-        }
-
-        return $jwk;
+        return $this->getClientPrivateJwk([
+            'use' => 'sig', 'alg' => 'ES256', 'kid' => $this->generateKidForSingpass('sig-key-'),
+        ]);
     }
 
-    public function getDecryptionJwk(): JWK
+    private function getDecryptionJwk(): JWK
     {
-        $decryptionKeyPassphrase = config('singpass-myinfo.decryption_key_passphrase');
+        return $this->getClientPrivateJwk([
+            'use' => 'enc', 'alg' => 'ECDH-ES+A256KW', 'kid' => $this->generateKidForSingpass('enc-key-'),
+        ]);
+    }
 
-        $additionalValues = [
-            'use' => 'enc', 'alg' => 'ECDH-ES+A256KW', 'kid' => 'my-enc-key',
-        ];
+    private function getClientPrivateJwk(array $additionalValues): JWK
+    {
+        return JWKFactory::createFromKey($this->getClientPrivateKey(), config('singpass-myinfo.client_private_key_passphrase'), $additionalValues);
+    }
 
-        // import decryption key
-        if ($this->decryptionKey) {
-            $jwk = JWKFactory::createFromKey($this->decryptionKey, $decryptionKeyPassphrase, $additionalValues);
-        } else {
-            $jwk = JWKFactory::createFromKeyFile('file://'.base_path(config('singpass-myinfo.decryption_key_file')), $decryptionKeyPassphrase, $additionalValues);
+    /**
+     * Singpass checks kid for client key rotation so we will use the hash of the client private key to generate kid
+     */
+    private function generateKidForSingpass(string $kidPrefix): string
+    {
+        return $kidPrefix.hash('sha256', $this->getClientPrivateKey());
+    }
+
+    private function getClientPrivateKey(): string
+    {
+        if ($this->clientPrivateKey) {
+            return $this->clientPrivateKey;
         }
 
-        return $jwk;
+        return $this->clientPrivateKey = file_get_contents('file://'.base_path(config('singpass-myinfo.client_private_key_file')));
     }
 
     public function generateJwksForSingpassPortal(): array
