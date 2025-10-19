@@ -1,12 +1,14 @@
 {
-    "name": ":vendor_slug/:package_slug",
-    "description": ":package_description",
+    "version": "1.0.0",
+    "name": "shokanshi/singpass-myinfo",
+    "description": "A Laravel socialite package for Singpass MyInfo v5",
     "keywords": [
-        ":vendor_name",
-        "laravel",
-        ":package_slug"
+        "Laravel",
+        "Singpass",
+        "MyInfo",
+        "MyInfo v5"
     ],
-    "homepage": "https://github.com/:vendor_slug/:package_slug",
+    "homepage": "https://github.com/shokanshi/singpass-myinfo",
     "license": "MIT",
     "authors": [
         {
@@ -17,13 +19,16 @@
     ],
     "require": {
         "php": "^8.4",
+        "illuminate/contracts": "^11.0||^12.0",
+        "laravel/socialite": "^5.23",
         "spatie/laravel-package-tools": "^1.16",
-        "illuminate/contracts": "^11.0||^12.0"
+        "spomky-labs/aes-key-wrap": "^7.0",
+        "web-token/jwt-framework": "^4.0"
     },
     "require-dev": {
-        "laravel/pint": "^1.14",
-        "nunomaduro/collision": "^8.8",
         "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.25",
+        "nunomaduro/collision": "^8.8",
         "orchestra/testbench": "^10.0.0||^9.0.0",
         "pestphp/pest": "^4.0",
         "pestphp/pest-plugin-arch": "^4.0",
@@ -35,13 +40,13 @@
     },
     "autoload": {
         "psr-4": {
-            "VendorName\\Skeleton\\": "src/",
-            "VendorName\\Skeleton\\Database\\Factories\\": "database/factories/"
+            "Shokanshi\\SingpassMyInfo\\": "src/",
+            "Shokanshi\\SingpassMyInfo\\Database\\Factories\\": "database/factories/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "VendorName\\Skeleton\\Tests\\": "tests/",
+            "Shokanshi\\SingpassMyInfo\\Tests\\": "tests/",
             "Workbench\\App\\": "workbench/app/"
         }
     },
@@ -63,13 +68,11 @@
     "extra": {
         "laravel": {
             "providers": [
-                "VendorName\\Skeleton\\SkeletonServiceProvider"
+                "Shokanshi\\SingpassMyInfo\\Providers\\SingpassMyInfoServiceProvider"
             ],
-            "aliases": {
-                "Skeleton": "VendorName\\Skeleton\\Facades\\Skeleton"
-            }
+            "aliases": {}
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }
