@@ -188,7 +188,7 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
     {
         $config = $this->getOpenIDConfiguration();
 
-        $signingJwk = $this->getSigningJwk();
+        $signingJwk = $this->getSigningPrivateJwk();
 
         $algorithmFactory = new AlgorithmManagerFactory;
 
@@ -366,7 +366,7 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
             $contentEncryptionAlgorithmManager,
         );
 
-        $decryptionJwk = $this->getDecryptionJwk();
+        $decryptionJwk = $this->getDecryptionPrivateJwk();
 
         $serializerManager = new JWESerializerManager([new \Jose\Component\Encryption\Serializer\CompactSerializer]);
         $jwe = $serializerManager->unserialize($idToken);
@@ -512,14 +512,14 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
         }
     }
 
-    private function getSigningJwk(): JWK
+    private function getSigningPrivateJwk(): JWK
     {
         return $this->getClientPrivateJwk([
             'use' => 'sig', 'alg' => 'ES256', 'kid' => $this->generateKidForSingpass('sig-key-'),
         ]);
     }
 
-    private function getDecryptionJwk(): JWK
+    private function getDecryptionPrivateJwk(): JWK
     {
         return $this->getClientPrivateJwk([
             'use' => 'enc', 'alg' => 'ECDH-ES+A256KW', 'kid' => $this->generateKidForSingpass('enc-key-'),
@@ -550,8 +550,8 @@ class SingpassProvider extends AbstractProvider implements ProviderInterface
 
     public function generateJwksForSingpassPortal(): array
     {
-        $jwks['keys'][] = $this->getSigningJwk()->toPublic();
-        $jwks['keys'][] = $this->getDecryptionJwk()->toPublic();
+        $jwks['keys'][] = $this->getSigningPrivateJwk()->toPublic();
+        $jwks['keys'][] = $this->getDecryptionPrivateJwk()->toPublic();
 
         return $jwks;
     }
