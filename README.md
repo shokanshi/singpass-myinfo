@@ -58,9 +58,9 @@ SINGPASS_OPENID_DISCOVERY_ENDPOINT=https://stg-id.singpass.gov.sg/.well-known/op
 SINGPASS_SCOPES="openid"
 
 # Default routes
-SINGPASS_AUTHENTICATION_ENDPOINT_=sp/login
-SINGPASS_CALLBACK_ENDPOINT_=sp/callback
-SINGPASS_JWKS_ENDPOINT_=sp/jwks
+SINGPASS_AUTHORIZATION_ENDPOINT=sp/login
+SINGPASS_CALLBACK_ENDPOINT=sp/callback
+SINGPASS_JWKS_ENDPOINT=sp/jwks
 ```
 
 ## Checking If It Work Right Out Of The Box For You
@@ -146,12 +146,12 @@ return [
 There are three default routes that you can customize, namely:
 
 ```ini
-SINGPASS_AUTHENTICATION_URL=sp/login
-SINGPASS_CALLBACK_URL=sp/callback
-SINGPASS_JWKS_URL=sp/jwks
+SINGPASS_AUTHORIZATION_ENDPOINT=sp/login
+SINGPASS_CALLBACK_ENDPOINT=sp/callback
+SINGPASS_JWKS_ENDPOINT=sp/jwks
 ```
 
-Accessing routes via name in your Laravel codes:
+You can access the routes via name in your Laravel codes:
 
 ```php
 route('singpass.login');
