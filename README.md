@@ -161,10 +161,10 @@ route('singpass.jwks');
 
 ### Custom Routes
 
-If you prefer the authentication url to be `https://your-company.com/sp/auth`, you can update `SINGPASS_AUTHENTICATION_URL` to `sp/auth`:
+If you prefer the authentication url to be `https://your-company.com/sp/auth`, you can update `SINGPASS_AUTHORIZATION_URL` to `sp/auth`:
 
 ```ini
-SINGPASS_AUTHENTICATION_URL=sp/auth
+SINGPASS_AUTHORIZATION_URL=sp/auth
 ```
 
 # Custom Controllers
@@ -172,7 +172,7 @@ SINGPASS_AUTHENTICATION_URL=sp/auth
 You can customize the default controller via the `singpass-myinfo.php` config file.
 
 ```php
-'authentication_endpoint_controller' => GetAuthenticationController::class,
+'authorization_endpoint_controller' => GetAuthorizationController::class,
 'callback_endpoint_controller' => GetCallbackController::class,
 'jwks_endpoint_controller' => GetJwksController::class,
 ```
@@ -188,7 +188,7 @@ php artisan make:controller MySingpassAuthController
 In `singpass-myinfo.php` config file:
 
 ```php
-'authentication_endpoint_controller' => MySingpassAuthController::class,
+'authorization_endpoint_controller' => MySingpassAuthController::class,
 ```
 
 In `MySingpassAuthController.php`:
