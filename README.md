@@ -79,7 +79,7 @@ https://your-company.com/sp/jwks
 https://your-company.com/sp/login
 ```
 
-# Configuration
+## Configuration
 
 You can publish the config file with:
 
@@ -167,7 +167,7 @@ If you prefer the authentication url to be `https://your-company.com/sp/auth`, y
 SINGPASS_AUTHORIZATION_URL=sp/auth
 ```
 
-# Custom Controllers
+## Custom Controllers
 
 You can customize the default controller via the `singpass-myinfo.php` config file.
 
