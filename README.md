@@ -3,7 +3,9 @@
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/shokanshi/singpass-myinfo.svg?style=flat-square)](https://packagist.org/packages/shokanshi/singpass-myinfo)
 [![Total Downloads](https://img.shields.io/packagist/dt/shokanshi/singpass-myinfo.svg?style=flat-square)](https://packagist.org/packages/shokanshi/singpass-myinfo)
 
-This is a Laravel socialite package for Singpass MyInfo v5. The purpose of this package is to make it very easy for PHP developers to integrate Singpass v5.
+This is a Laravel socialite package for [Singpass MyInfo v5](https://docs.developer.singpass.gov.sg/docs/products/myinfo/introduction). The purpose of this package is to make it very easy for PHP (8.2+) developers to integrate Singpass v5.
+
+[FAPI 2.0](https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api) support is currently not available as Singpass staging and production servers will only be ready in December 2025 and January 2026 respectively.
 
 ## Support Me
 
@@ -64,6 +66,8 @@ SINGPASS_JWKS_ENDPOINT=sp/jwks
 ```
 
 ## Checking If It Work Right Out Of The Box For You
+
+Remember to create your [Singpass application](https://docs.developer.singpass.gov.sg/docs/getting-started/create-singpass-application) at [Singpass Developer Portal](https://developer.singpass.gov.sg/) before you proceed to test.
 
 Assuming you are using the default setup and filled up the values in `.env` file:
 
