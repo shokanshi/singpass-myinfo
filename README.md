@@ -17,16 +17,24 @@ You can install the package via composer:
 composer require shokanshi/singpass-myinfo
 ```
 
+## Setting Up Private Keys
+
+The package will attempt to load the private keys from `storage/app`.
+
+**❌ DO NOT** store the private keys in `./storage/app/public` folder! They will be publicly accessible!
+
+If you have not already done so, create a `secure` folder within `storage/app` in your project folder.
+
 Create private key for signing:
 
 ```bash
-openssl ecparam -name prime256v1 -genkey -noout -out your-singpass-signing-private.pem
+openssl ecparam -name prime256v1 -genkey -noout -out ./storage/app/secure/your-singpass-signing-private.pem
 ```
 
 Create private key for decryption:
 
 ```bash
-openssl ecparam -name prime256v1 -genkey -noout -out your-singpass-decryption-private.pem
+openssl ecparam -name prime256v1 -genkey -noout -out ./storage/app/secure/your-singpass-decryption-private.pem
 ```
 
 Add the following variables to your `.env` file and adjust accordingly to your app. The following is just an example.
@@ -35,10 +43,15 @@ Add the following variables to your `.env` file and adjust accordingly to your a
 # Singpass variables
 SINGPASS_CLIENT_ID=
 SINGPASS_REDIRECT_URI=https://your-company.com/sp/callback
-SINGPASS_SIGNING_PRIVATE_KEY_FILE=your-singpass-signing-private.pem
+
+# Base folder is ./storage/app
+SINGPASS_SIGNING_PRIVATE_KEY_FILE=secure/your-singpass-signing-private.pem
 SINGPASS_SIGNING_PRIVATE_KEY_PASSPHRASE=
-SINGPASS_DECRYPTION_PRIVATE_KEY_FILE=your-singpass-decryption-private.pem
+
+# Base folder is ./storage/app
+SINGPASS_DECRYPTION_PRIVATE_KEY_FILE=secure/your-singpass-decryption-private.pem
 SINGPASS_DECRYPTION_PRIVATE_KEY_PASSPHRASE=
+
 SINGPASS_OPENID_DISCOVERY_ENDPOINT=https://stg-id.singpass.gov.sg/.well-known/openid-configuration
 
 # for Singpass login, set openid as the only scope. Additional scopes (space separated within double quotes) will switch to MyInfo flow
