@@ -202,7 +202,7 @@ class MySingpassAuthController extends Controller
 {
     public function __invoke(Request $request)
     {
-        Socialite::driver('singpass')
+        return Socialite::driver('singpass')
         ->when(app()->environment('local'), function($singpass) {
             $singpass
                 ->setClientId('staging client id')
