@@ -164,7 +164,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
     public function setOpenIdDiscoveryUrl(string $url): self
     {
-        config(['singpass-myinfo.openid_discovery_url' => $url]);
+        config(['singpass-myinfo.openid_discovery_endpoint' => $url]);
 
         return $this;
     }
@@ -493,7 +493,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         if (Cache::has('singpassOpenIDConfig')) {
             return Cache::get('singpassOpenIDConfig');
         }
-        $response = $this->getHttpClient()->get(config('singpass-myinfo.openid_discovery_url'), [
+        $response = $this->getHttpClient()->get(config('singpass-myinfo.openid_discovery_endpoint'), [
             'headers' => ['Accept' => 'application/json'],
         ]);
         $openIDConfig = json_decode($response->getBody(), true);

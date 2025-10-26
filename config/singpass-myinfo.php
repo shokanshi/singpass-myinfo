@@ -6,7 +6,7 @@ use Shokanshi\SingpassMyInfo\Http\Controllers\GetJwksController;
 
 return [
     // default to Singpass staging
-    'openid_discovery_url' => env('SINGPASS_OPENID_DISCOVERY_ENDPOINT', 'https://stg-id.singpass.gov.sg/.well-known/openid-configuration'),
+    'openid_discovery_endpoint' => env('SINGPASS_OPENID_DISCOVERY_ENDPOINT', 'https://stg-id.singpass.gov.sg/.well-known/openid-configuration'),
 
     'client_id' => env('SINGPASS_CLIENT_ID'),
 

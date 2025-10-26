@@ -79,7 +79,7 @@ This is the content of the published config file:
 ```php
 return [
     // default to Singpass staging
-    'openid_discovery_url' => env('SINGPASS_OPENID_DISCOVERY_ENDPOINT', 'https://stg-id.singpass.gov.sg/.well-known/openid-configuration'),
+    'openid_discovery_endpoint' => env('SINGPASS_OPENID_DISCOVERY_ENDPOINT', 'https://stg-id.singpass.gov.sg/.well-known/openid-configuration'),
 
     'client_id' => env('SINGPASS_CLIENT_ID'),
 
@@ -350,11 +350,11 @@ The following is an example to illustrate a more advance use case for this packa
 
 ### Custom fields added to Tenant table
 
-| Name                            | Type           | Description                           | Default    |
-| ------------------------------- | -------------- | ------------------------------------- | ---------- |
-| `singpass_client_id`            | `varchar(255)` | Singpass client id                    | _required_ |
-| `singpass_openid_discovery_url` | `varchar(255)` | Singpass openid discovery endpoint id | _required_ |
-| `singpass_scopes`               | `text`         | Space separated Singpass scopes       | `openid`   |
+| Name                                 | Type           | Description                           | Default    |
+| ------------------------------------ | -------------- | ------------------------------------- | ---------- |
+| `singpass_client_id`                 | `varchar(255)` | Singpass client id                    | _required_ |
+| `singpass_openid_discovery_endpoint` | `varchar(255)` | Singpass openid discovery endpoint id | _required_ |
+| `singpass_scopes`                    | `text`         | Space separated Singpass scopes       | `openid`   |
 
 ### New Table: tenant_private_keys
 
@@ -380,7 +380,7 @@ class MySingpassJwksEndpointController extends Controller
 
         $singpass
             ->setClientId($tenant->singpass_client_id)
-            ->setOpenIdDiscoveryUrl($tenant->singpass_openid_discovery_url)
+            ->setOpenIdDiscoveryUrl($tenant->singpass_openid_discovery_endpoint)
             ->setScopes([$tenant->singpass_scopes])
             ->setRedirectUrl(route('singpass.login'));
 
@@ -395,7 +395,7 @@ class MySingpassJwksEndpointController extends Controller
                     })->when($key->type === 'decryption', function($singpass) use ($key) {
                         $singpass->addDecryptionPrivateKey([
                             'keyContent' => $key->key_content,
-                                'passphrase' => $key->passphrase,
+                            'passphrase' => $key->passphrase,
                         ]);
                     });
                 });
