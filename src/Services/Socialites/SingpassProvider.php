@@ -136,7 +136,11 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         }
 
         $keys = $this->signingPrivateKeys->toCollection();
-        $this->signingPrivateKeys = new DataCollection(PrivateKeyData::class, $keys->push($key));
+
+        /** @var \Illuminate\Support\Collection $keys */
+        $keys->push($key);
+
+        $this->signingPrivateKeys = new DataCollection(PrivateKeyData::class, $keys);
 
         return $this;
     }
@@ -159,7 +163,11 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         }
 
         $keys = $this->decryptionPrivateKeys->toCollection();
-        $this->decryptionPrivateKeys = new DataCollection(PrivateKeyData::class, $keys->push($key));
+
+        /** @var \Illuminate\Support\Collection $keys */
+        $keys->push($key);
+
+        $this->decryptionPrivateKeys = new DataCollection(PrivateKeyData::class, $keys);
 
         return $this;
     }
@@ -279,8 +287,14 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         // JWT issue timestamp
         $issuedAt = now();
 
+        $signingJwk = null;
+
         // get the first jwk
-        $signingJwk = $this->getSigningPrivateJwks()->getIterator()->current();
+        foreach ($this->getSigningPrivateJwks()->getIterator() as $jwk) {
+            $signingJwk = $jwk;
+
+            break;
+        }
 
         if (! $signingJwk) {
             throw new JwksInvalidException;
