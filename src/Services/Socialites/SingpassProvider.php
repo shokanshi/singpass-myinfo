@@ -642,6 +642,8 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
     public function generateJwksForSingpassPortal(): array
     {
+        $jwks = [];
+
         foreach ($this->getSigningPrivateJwks() as $key) {
             $jwks['keys'][] = $key->toPublic();
         }

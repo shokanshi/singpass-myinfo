@@ -43,7 +43,10 @@
         "psr-4": {
             "Shokanshi\\SingpassMyInfo\\": "src/",
             "Shokanshi\\SingpassMyInfo\\Database\\Factories\\": "database/factories/"
-        }
+        },
+        "files": [
+            "src/helpers.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

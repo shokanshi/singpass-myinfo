@@ -202,7 +202,7 @@ class MySingpassAuthController extends Controller
 {
     public function __invoke(Request $request)
     {
-        return Socialite::driver('singpass')
+        return singpass()
         ->when(app()->environment('local'), function($singpass) {
             $singpass
                 ->setClientId('staging client id')
@@ -253,6 +253,12 @@ class MySingpassAuthController extends Controller
 
 If you have a multitenancy application and would like to allow onboarding of individual tenant onto Singpass, the following methods will be useful to you. You can setup custom controllers (like the [example](#example) above) to handle the aspect of multitenancy with them.
 
+### `singpass(): SingpassProvider`
+
+A helper method that return the SingpassProvider Socialite object.
+
+---
+
 ### `user(): \Laravel\Socialite\Contracts\User`
 
 Return the Socialite user object.
@@ -262,6 +268,8 @@ Return the Socialite user object.
 ### `redirect(): \Illuminate\Http\RedirectResponse`
 
 Redirect the user of the application to the provider's authentication screen.
+
+To retrieve the redirect url, you can call `singpass()->redirect()->getTargetUrl()`.
 
 ---
 
@@ -405,16 +413,14 @@ class MySingpassJwksEndpointController extends Controller
     {
         $tenant = Tenant::current();
 
-        $singpass = Socialite::driver('singpass');
-
-        $singpass
+        singpass()
             ->setClientId($tenant->singpass_client_id)
             ->setOpenIdDiscoveryUrl($tenant->singpass_openid_discovery_endpoint)
             ->setScopes([$tenant->singpass_scopes])
             ->setRedirectUrl(route('singpass.login'));
 
         foreach ($tenant->singpassPrivateKeys() as $key) {
-            $singpass
+            singpass()
                 ->when(Carbon::now()->between($key->valid_from, $key->valid_to), function($singpass) use ($key) {
                     $singpass->when($key->type === 'signing', function($singpass) use ($key) {
                         $singpass->addSigningPrivateKey([
@@ -430,7 +436,7 @@ class MySingpassJwksEndpointController extends Controller
                 });
         }
 
-        return response()->json(json_encode($singpass->generateJwksForSingpassPortal()));
+        return response()->json(json_encode(singpass()->generateJwksForSingpassPortal()));
     }
 }
 ```
