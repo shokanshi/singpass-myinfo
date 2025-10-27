@@ -253,6 +253,18 @@ class MySingpassAuthController extends Controller
 
 If you have a multitenancy application and would like to allow onboarding of individual tenant onto Singpass, the following methods will be useful to you. You can setup custom controllers (like the [example](#example) above) to handle the aspect of multitenancy with them.
 
+### `user(): \Laravel\Socialite\Contracts\User`
+
+Return the Socialite user object.
+
+---
+
+### `redirect(): \Illuminate\Http\RedirectResponse`
+
+Redirect the user of the application to the provider's authentication screen.
+
+---
+
 ### `setClientId(string $clientId): self`
 
 Overwrite the value of `SINGPASS_CLIENT_ID` defined in the `.env` file when called.
@@ -337,9 +349,9 @@ Add a new private key to the collection and overwrite the value of `SINGPASS_DEC
 
 ---
 
-### `generateJwksForSingpassPortal(): string`
+### `generateJwksForSingpassPortal(): array`
 
-Return a json encoded string of the jwks that Singpass will call and retrieve.
+Return an array of public keys that will be json encoded and consumed by Singpass.
 
 ---
 
@@ -437,7 +449,7 @@ Please review [our security policy](../../security/policy) on how to report secu
 
 ## Credits
 
-The code of this package is heavily influenced by the code shown in [Laravel Socialite](https://leeliwei930.medium.com/integrating-singpass-login-api-with-laravel-socialite-provider-part-1-onboarding-setup-210d7fa0f31f).
+The code of this package is heavily influenced by the code shown in [Laravel Socialite - Singpass](https://leeliwei930.medium.com/integrating-singpass-login-api-with-laravel-socialite-provider-part-1-onboarding-setup-210d7fa0f31f).
 
 You will also find some code reference from [Accredifysg/SingPass-Login](https://github.com/Accredifysg/SingPass-Login/) in this package.
 
