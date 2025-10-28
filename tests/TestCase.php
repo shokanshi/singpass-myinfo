@@ -1,8 +1,9 @@
 <?php
 
-namespace VendorName\Skeleton\Tests;
+namespace Shokanshi\SingpassMyInfo\Tests;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Laravel\Socialite\SocialiteServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 use Shokanshi\SingpassMyInfo\Providers\SingpassMyInfoServiceProvider;
 
@@ -13,13 +14,14 @@ class TestCase extends Orchestra
         parent::setUp();
 
         Factory::guessFactoryNamesUsing(
-            fn (string $modelName) => 'VendorName\\Skeleton\\Database\\Factories\\'.class_basename($modelName).'Factory'
+            fn (string $modelName) => 'Shokanshi\\SingpassMyInfo\\Database\\Factories\\'.class_basename($modelName).'Factory'
         );
     }
 
     protected function getPackageProviders($app)
     {
         return [
+            SocialiteServiceProvider::class,
             SingpassMyInfoServiceProvider::class,
         ];
     }
