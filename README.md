@@ -404,10 +404,13 @@ class MySingpassJwksEndpointController extends Controller
         foreach ($tenant->singpassPrivateKeys() as $key) {
             singpass()
                 ->when(Carbon::now()->between($key->valid_from, $key->valid_to), function($singpass) use ($key) {
-                    $singpass->when($key->type === 'signing', function($singpass) use ($key) {
-                        $singpass->addSigningKey($key->key_content, $key->passphrase);
-                    })->when($key->type === 'decryption', function($singpass) use ($key) {
-                        $singpass->addDecryptionKey($key->key_content, $key->passphrase);
+                    $singpass
+                        ->when($key->type === 'signing', function($singpass) use ($key) {
+                            $singpass->addSigningKey($key->key_content, $key->passphrase);
+                        })
+                        ->when($key->type === 'decryption', function($singpass) use ($key) {
+                            $singpass->addDecryptionKey($key->key_content, $key->passphrase);
+                        });
                 });
         }
 
