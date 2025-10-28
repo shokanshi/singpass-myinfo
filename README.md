@@ -308,9 +308,24 @@ Add a new private key to the collection and overwrite the value of `SINGPASS_SIG
 
 #### Parameters
 
-| Name    | Type     | Description                                              | Default    |
-| ------- | -------- | -------------------------------------------------------- | ---------- |
-| `$json` | `string` | Json encoded string of the JWK that will be used signing | _required_ |
+| Name    | Type     | Description                                                          | Default    |
+| ------- | -------- | -------------------------------------------------------------------- | ---------- |
+| `$json` | `string` | Json encoded string of the private JWK that will be used for signing | _required_ |
+
+#### Sample json object from [Singpass Demo](https://github.com/singpass/demo-app) for signing:
+
+```php
+{
+    "alg": "ES256",
+    "kty": "EC",
+    "x": "tqG7PiAPD0xTBKdxDd4t8xAjJleP3Szw1CZiBjogmoc",
+    "y": "256TjvubWV-x-C8lptl7eSbMa7pQUXH9LY1AIHUGINk",
+    "crv": "P-256",
+    "d": "PgL1UKVpvg_GeKdxV-oUEPIDhGBP2YYZLGiZ5HXDZDI",
+    "use": "sig",
+    "kid": "my-sig-key"
+}
+```
 
 ---
 
@@ -333,9 +348,24 @@ Add a new private key to the collection and overwrite the value of `SINGPASS_DEC
 
 #### Parameters
 
-| Name    | Type     | Description                                                 | Default    |
-| ------- | -------- | ----------------------------------------------------------- | ---------- |
-| `$json` | `string` | Json encoded string of the JWK that will be used decryption | _required_ |
+| Name    | Type     | Description                                                             | Default    |
+| ------- | -------- | ----------------------------------------------------------------------- | ---------- |
+| `$json` | `string` | Json encoded string of the private JWK that will be used for decryption | _required_ |
+
+#### Sample json object from [Singpass Demo](https://github.com/singpass/demo-app) for decryption:
+
+```php
+{
+    "alg": "ECDH-ES+A256KW",
+    "kty": "EC",
+    "x": "_TSrfW3arG1Ebc8pCyT-r5lAFvCh_rJvC5HD5-y8yvs",
+    "y": "Sr2vpuU6gzdUiXddGnRJIroXCfdameaR1mgU49H5h9A",
+    "crv": "P-256",
+    "d": "AEabUwi3VjOOfiyoOtSGrqpl8cfhcUhNtj-xh1l-UYE",
+    "use": "enc",
+    "kid": "my-enc-key"
+}
+```
 
 ---
 
