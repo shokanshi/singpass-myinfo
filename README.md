@@ -208,36 +208,16 @@ class MySingpassAuthController extends Controller
                 ->setClientId('staging client id')
                 ->setOpenIdDiscoveryUrl('https://stg-id.singpass.gov.sg/.well-known/openid-configuration')
                 ->setRedirectUrl(route('singpass.login'))
-                ->setSigningPrivateKeys([
-                    [
-                        'keyContent' => 'staging private key 1',
-                        'passphrase' => 'staging password 1'
-                    ]
-                ])
-                ->setDecryptionPrivateKeys([
-                    [
-                        'keyContent' => 'staging private key 2',
-                        'passphrase' => 'staging password 2'
-                    ]
-                ]);
+                ->addSigningKey(Storage::disk('local')->get('stage_signing_key_1.pem'))
+                ->addDecryptionKey(Storage::disk('local')->get('stage_decryption_key_1.pem'));
         })
         ->when(app()->environment('production'), function($singpass) {
             $singpass
                 ->setClientId('production client id')
                 ->setOpenIdDiscoveryUrl('https://id.singpass.gov.sg/.well-known/openid-configuration')
                 ->setRedirectUrl(route('singpass.login'))
-                ->setSigningPrivateKeys([
-                    [
-                        'keyContent' => 'production private key 1',
-                        'passphrase' => 'production password 1'
-                    ]
-                ])
-                ->setDecryptionPrivateKeys([
-                    [
-                        'keyContent' => 'production private key 2',
-                        'passphrase' => 'production password 2'
-                    ]
-                ]);
+                ->addSigningKey(Storage::disk('local')->get('prod_signing_key_1.pem'))
+                ->addDecryptionKey(Storage::disk('local')->get('prod_decryption_key_1.pem'));
         })
         ->redirect();
     }
@@ -309,51 +289,53 @@ Overwrite the value of `SINGPASS_REDIRECT_URI` defined in the `.env` file when c
 
 ---
 
-### `setSigningPrivateKeys(array $keys): self`
-
-Assign a set of private keys to the collection and overwrite the value of `SINGPASS_SIGNING_PRIVATE_KEY_FILE` defined in the `.env` file when called.
-
-#### Parameters
-
-| Name    | Type    | Description                                                                                                                                                      | Default    |
-| ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `$keys` | `array` | Private keys that will be used for signing in the following format: `[['keyContent' => 'pem file content here', 'passphrase' => 'secret password here'], [...]]` | _required_ |
-
----
-
-### `setDecryptionPrivateKeys(array $keys): self`
-
-Assign a set of private keys to the collection and overwrite the value of `SINGPASS_DECRYPTION_PRIVATE_KEY_FILE` defined in the `.env` file when called.
-
-#### Parameters
-
-| Name    | Type    | Description                                                                                                                                                      | Default    |
-| ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `$keys` | `array` | Private keys that will be used for signing in the following format: `[['keyContent' => 'pem file content here', 'passphrase' => 'secret password here'], [...]]` | _required_ |
-
----
-
-### `addSigningPrivateKey(array $key): self`
+### `addSigningKey(string $keyContent, ?string $passphrase): self`
 
 Add a new private key to the collection and overwrite the value of `SINGPASS_SIGNING_PRIVATE_KEY_FILE` defined in the `.env` file when called.
 
 #### Parameters
 
-| Name   | Type    | Description                                                                                                                                            | Default    |
-| ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| `$key` | `array` | Private key that will be used for signing in the following format: `['keyContent' => 'pem file content here', 'passphrase' => 'secret password here']` | _required_ |
+| Name          | Type     | Description                                                           | Default    |
+| ------------- | -------- | --------------------------------------------------------------------- | ---------- |
+| `$keyContent` | `string` | The content of the private key pem file that will be used for signing | _required_ |
+| `$passphrase` | `string` | The passphrase for the pem file if it is encrypted                    |            |
 
 ---
 
-### `addDecryptionPrivateKey(array $key): self`
+### `addSigningKeyFromJsonObject(string $json): self`
+
+Add a new private key to the collection and overwrite the value of `SINGPASS_SIGNING_PRIVATE_KEY_FILE` defined in the `.env` file when called.
+
+#### Parameters
+
+| Name    | Type     | Description                                              | Default    |
+| ------- | -------- | -------------------------------------------------------- | ---------- |
+| `$json` | `string` | Json encoded string of the JWK that will be used signing | _required_ |
+
+---
+
+### `addDecryptionKey(string $keyContent, ?string $passphrase): self`
 
 Add a new private key to the collection and overwrite the value of `SINGPASS_DECRYPTION_PRIVATE_KEY_FILE` defined in the `.env` file when called.
 
 #### Parameters
 
-| Name   | Type    | Description                                                                                                                                               | Default    |
-| ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `$key` | `array` | Private key that will be used for decryption in the following format: `['keyContent' => 'pem file content here', 'passphrase' => 'secret password here']` | _required_ |
+| Name          | Type     | Description                                                              | Default    |
+| ------------- | -------- | ------------------------------------------------------------------------ | ---------- |
+| `$keyContent` | `string` | The content of the private key pem file that will be used for decryption | _required_ |
+| `$passphrase` | `string` | The passphrase for the pem file if it is encrypted                       |            |
+
+---
+
+### `addDecryptionKeyFromJsonObject(string $json): self`
+
+Add a new private key to the collection and overwrite the value of `SINGPASS_DECRYPTION_PRIVATE_KEY_FILE` defined in the `.env` file when called.
+
+#### Parameters
+
+| Name    | Type     | Description                                                 | Default    |
+| ------- | -------- | ----------------------------------------------------------- | ---------- |
+| `$json` | `string` | Json encoded string of the JWK that will be used decryption | _required_ |
 
 ---
 
@@ -423,16 +405,9 @@ class MySingpassJwksEndpointController extends Controller
             singpass()
                 ->when(Carbon::now()->between($key->valid_from, $key->valid_to), function($singpass) use ($key) {
                     $singpass->when($key->type === 'signing', function($singpass) use ($key) {
-                        $singpass->addSigningPrivateKey([
-                            'keyContent' => $key->key_content,
-                            'passphrase' => $key->passphrase,
-                        ]);
+                        $singpass->addSigningKey($key->key_content, $key->passphrase);
                     })->when($key->type === 'decryption', function($singpass) use ($key) {
-                        $singpass->addDecryptionPrivateKey([
-                            'keyContent' => $key->key_content,
-                            'passphrase' => $key->passphrase,
-                        ]);
-                    });
+                        $singpass->addDecryptionKey($key->key_content, $key->passphrase);
                 });
         }
 

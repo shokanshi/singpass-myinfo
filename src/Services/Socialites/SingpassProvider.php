@@ -47,14 +47,11 @@ use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\ProviderInterface;
 use Laravel\Socialite\Two\User;
 use SensitiveParameter;
-use Shokanshi\SingpassMyInfo\Dtos\PrivateKeyData;
 use Shokanshi\SingpassMyInfo\Exceptions\JwksInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwtDecodeFailedException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwtPayloadException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassJwksException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassPrivateKeyMissingException;
-use Spatie\LaravelData\Attributes\Hidden;
-use Spatie\LaravelData\DataCollection;
 use stdClass;
 use Symfony\Component\Clock\NativeClock;
 
@@ -62,11 +59,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 {
     use Conditionable;
 
-    #[Hidden]
-    protected ?DataCollection $signingPrivateKeys = null;
+    protected ?JWKSet $signingJwks = null;
 
-    #[Hidden]
-    protected ?DataCollection $decryptionPrivateKeys = null;
+    protected ?JWKSet $decryptionJwks = null;
 
     /**
      * You can directly update the client id bypassing config file. Great for multitenancy application
@@ -89,31 +84,21 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
-     * Instead of using a pem file, you can set the content of the pem file here. Great for multitenancy application and
-     * key rotation.
-     *
-     * If this property is set, the private key file specified in .env will be ignored
+     * This method is similar to addSigningKey() except that it accepts a json encoded jwk
      */
-    public function setSigningPrivateKeys(
+    public function addSigningKeyFromJsonObject(
         #[SensitiveParameter]
-        array $keys
-    ): self {
-        $this->signingPrivateKeys = new DataCollection(PrivateKeyData::class, $keys);
+        string $json): self
+    {
+        $jwk = JWKFactory::createFromJsonObject($json);
 
-        return $this;
-    }
+        if (! $this->signingJwks) {
+            $this->signingJwks = new JWKSet([$jwk]);
 
-    /**
-     * Instead of using a pem file, you can set the content of the pem file here. Great for multitenancy application and
-     * key rotation.
-     *
-     * If this property is set, the private key file specified in .env will be ignored
-     */
-    public function setDecryptionPrivateKeys(
-        #[SensitiveParameter]
-        array $keys
-    ): self {
-        $this->decryptionPrivateKeys = new DataCollection(PrivateKeyData::class, $keys);
+            return $this;
+        }
+
+        $this->signingJwks = $this->signingJwks->with($jwk);
 
         return $this;
     }
@@ -125,22 +110,44 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
      *
      * If this property is set, the private key file specified in .env will be ignored
      */
-    public function addSigningPrivateKey(
+    public function addSigningKey(
         #[SensitiveParameter]
-        array $key
-    ): self {
-        if (! $this->signingPrivateKeys) {
-            $this->signingPrivateKeys = new DataCollection(PrivateKeyData::class, [$key]);
+        string $keyContent,
+
+        #[SensitiveParameter]
+        ?string $passphrase = null): self
+    {
+        $jwk = JWKFactory::createFromKey($keyContent, $passphrase, [
+            'use' => 'sig', 'alg' => 'ES256', 'kid' => hash('sha256', $keyContent),
+        ]);
+
+        if (! $this->signingJwks) {
+            $this->signingJwks = new JWKSet([$jwk]);
 
             return $this;
         }
 
-        $keys = $this->signingPrivateKeys->toCollection();
+        $this->signingJwks = $this->signingJwks->with($jwk);
 
-        /** @var \Illuminate\Support\Collection $keys */
-        $keys->push($key);
+        return $this;
+    }
 
-        $this->signingPrivateKeys = new DataCollection(PrivateKeyData::class, $keys);
+    /**
+     * This method is similar to addDecryptionKey() except that it accepts a json encoded jwk
+     */
+    public function addDecryptionKeyFromJsonObject(
+        #[SensitiveParameter]
+        string $json): self
+    {
+        $jwk = JWKFactory::createFromJsonObject($json);
+
+        if (! $this->decryptionJwks) {
+            $this->decryptionJwks = new JWKSet([$jwk]);
+
+            return $this;
+        }
+
+        $this->decryptionJwks = $this->decryptionJwks->with($jwk);
 
         return $this;
     }
@@ -152,22 +159,24 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
      *
      * If this property is set, the private key file specified in .env will be ignored
      */
-    public function addDecryptionPrivateKey(
+    public function addDecryptionKey(
         #[SensitiveParameter]
-        array $key
-    ): self {
-        if (! $this->decryptionPrivateKeys) {
-            $this->decryptionPrivateKeys = new DataCollection(PrivateKeyData::class, [$key]);
+        string $keyContent,
+
+        #[SensitiveParameter]
+        ?string $passphrase = null): self
+    {
+        $jwk = JWKFactory::createFromKey($keyContent, $passphrase, [
+            'use' => 'enc', 'alg' => 'ECDH-ES+A256KW', 'kid' => hash('sha256', $keyContent),
+        ]);
+
+        if (! $this->decryptionJwks) {
+            $this->decryptionJwks = new JWKSet([$jwk]);
 
             return $this;
         }
 
-        $keys = $this->decryptionPrivateKeys->toCollection();
-
-        /** @var \Illuminate\Support\Collection $keys */
-        $keys->push($key);
-
-        $this->decryptionPrivateKeys = new DataCollection(PrivateKeyData::class, $keys);
+        $this->decryptionJwks = $this->decryptionJwks->with($jwk);
 
         return $this;
     }
@@ -290,7 +299,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         $signingJwk = null;
 
         // get the first jwk
-        foreach ($this->getSigningPrivateJwks()->getIterator() as $jwk) {
+        foreach ($this->getSigningJwks() as $jwk) {
             $signingJwk = $jwk;
 
             break;
@@ -455,7 +464,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         $jwe = $serializerManager->unserialize($idToken);
 
         // if decryption is success return the decrypted payload
-        if ($decrypter->decryptUsingKeySet($jwe, $this->getDecryptionPrivateJwks(), 0)) {
+        if ($decrypter->decryptUsingKeySet($jwe, $this->getDecryptionJwks(), 0)) {
             return $jwe->getPayload();
         }
 
@@ -594,78 +603,51 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         }
     }
 
-    public function getSigningPrivateJwks(): JWKSet
+    private function getSigningJwks(): JWKSet
     {
-        if ($this->signingPrivateKeys) {
-            $jwks = [];
-            foreach ($this->signingPrivateKeys as $key) {
-                $jwks[] = JWKFactory::createFromKey($key->keyContent, $key->passphrase, [
-                    'use' => 'sig', 'alg' => 'ES256', 'kid' => $key->keyId(),
-                ]);
-            }
-
-            return new JWKSet($jwks);
-        }
-
         // default to load key from .env if none is specified
-        $file = config('singpass-myinfo.signing_private_key_file');
+        if (! $this->signingJwks) {
+            $file = config('singpass-myinfo.signing_private_key_file');
 
-        if (! Storage::disk('local')->exists($file)) {
-            throw new SingpassPrivateKeyMissingException(500, "Singpass private key file not found. Expected at: storage/app/{$file}");
+            $this->addSigningKey($this->getPrivateKeyFileContent($file), config('singpass-myinfo.signing_private_key_file_passphrase'));
         }
 
-        $this->setSigningPrivateKeys([
-            [
-                'keyContent' => Storage::disk('local')->get($file),
-                'passphrase' => config('singpass-myinfo.signing_private_key_file_passphrase'),
-            ],
-        ]);
-
-        return $this->getSigningPrivateJwks();
+        return $this->signingJwks;
     }
 
-    public function getDecryptionPrivateJwks(): JWKSet
+    private function getDecryptionJwks(): JWKSet
     {
-        if ($this->decryptionPrivateKeys) {
-            $jwks = [];
-            foreach ($this->decryptionPrivateKeys as $key) {
-                $jwks[] = JWKFactory::createFromKey($key->keyContent, $key->passphrase, [
-                    'use' => 'enc', 'alg' => 'ECDH-ES+A256KW', 'kid' => $key->keyId(),
-                ]);
-            }
-
-            return new JWKSet($jwks);
-        }
-
         // default to load key from .env if none is specified
-        $file = config('singpass-myinfo.decryption_private_key_file');
+        if (! $this->decryptionJwks) {
+            $file = config('singpass-myinfo.decryption_private_key_file');
 
-        if (! Storage::disk('local')->exists($file)) {
-            throw new SingpassPrivateKeyMissingException(500, "Singpass private key file not found. Expected at: storage/app/{$file}");
+            $this->addDecryptionKey($this->getPrivateKeyFileContent($file), config('singpass-myinfo.decryption_private_key_passphrase'));
         }
 
-        $this->setDecryptionPrivateKeys([
-            [
-                'keyContent' => Storage::disk('local')->get($file),
-                'passphrase' => config('singpass-myinfo.decryption_private_key_passphrase'),
-            ],
-        ]);
-
-        return $this->getDecryptionPrivateJwks();
+        return $this->decryptionJwks;
     }
 
     public function generateJwksForSingpassPortal(): array
     {
         $jwks = [];
 
-        foreach ($this->getSigningPrivateJwks() as $key) {
+        foreach ($this->getSigningJwks() as $key) {
             $jwks['keys'][] = $key->toPublic();
         }
 
-        foreach ($this->getDecryptionPrivateJwks() as $key) {
+        foreach ($this->getDecryptionJwks() as $key) {
             $jwks['keys'][] = $key->toPublic();
         }
 
         return $jwks;
+    }
+
+    private function getPrivateKeyFileContent(string $file): string
+    {
+        if (! Storage::disk('local')->exists($file)) {
+            throw new SingpassPrivateKeyMissingException(500, "Singpass private key file not found. Expected at: storage/app/{$file}");
+        }
+
+        return Storage::disk('local')->get($file);
     }
 }
