@@ -314,7 +314,7 @@ Add a new private key to the collection and overwrite the value of `SINGPASS_SIG
 
 #### Sample json object from [Singpass Demo](https://github.com/singpass/demo-app) for signing:
 
-```php
+```json
 {
     "alg": "ES256",
     "kty": "EC",
@@ -354,7 +354,7 @@ Add a new private key to the collection and overwrite the value of `SINGPASS_DEC
 
 #### Sample json object from [Singpass Demo](https://github.com/singpass/demo-app) for decryption:
 
-```php
+```json
 {
     "alg": "ECDH-ES+A256KW",
     "kty": "EC",
