@@ -57,7 +57,7 @@ jobs:
         run: composer show -D
 
       - name: Publish package config
-        run: php artisan vendor:publish --tag="singpass-myinfo-config"
+        run: vendor/bin/testbench vendor:publish --tag="singpass-myinfo-config" --force
 
       - name: Execute tests
         run: vendor/bin/pest --ci
