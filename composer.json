@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
     "name": "shokanshi/singpass-myinfo",
-    "description": "A Laravel socialite package for Singpass MyInfo v5",
+    "description": "Laravel Socialite Provider For Singpass MyInfo v5",
     "keywords": [
         "Laravel",
         "Singpass",
