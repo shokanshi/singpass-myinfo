@@ -26,15 +26,6 @@ class TestCase extends Orchestra
         ];
     }
 
-    protected function defineEnvironment($app)
-    {
-        // make sure the config exists **before** the provider boots
-        $app['config']->set(
-            'singpass-myinfo',
-            require __DIR__.'/../config/singpass-myinfo.php'
-        );
-    }
-
     public function getEnvironmentSetUp($app)
     {
         config()->set('database.default', 'testing');
