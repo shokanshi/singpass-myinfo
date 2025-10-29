@@ -6,7 +6,7 @@ use Exception;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
-class JwksInvalidException extends HttpException
+class JwkInvalidException extends HttpException
 {
     /**
      * @param  int  $statusCode  The HTTP status code for the response.
@@ -15,7 +15,7 @@ class JwksInvalidException extends HttpException
      * @param  array<string, string>  $headers  A list of HTTP headers to send with the response.
      * @param  int  $code  The internal exception code.
      */
-    public function __construct(int $statusCode = 500, string $message = 'JWKS Invalid', ?Exception $previous = null, array $headers = [], int $code = 0)
+    public function __construct(int $statusCode = 500, string $message = 'JWK Invalid', ?Exception $previous = null, array $headers = [], int $code = 0)
     {
         parent::__construct($statusCode, $message, $previous, $headers, $code);
     }

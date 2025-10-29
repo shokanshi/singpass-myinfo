@@ -8,6 +8,13 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class JweDecryptionFailedException extends HttpException
 {
+    /**
+     * @param  int  $statusCode  The HTTP status code for the response.
+     * @param  string  $message  The exception message.
+     * @param  Exception|null  $previous  The previous exception used for exception chaining.
+     * @param  array<string, string>  $headers  A list of HTTP headers to send with the response.
+     * @param  int  $code  The internal exception code.
+     */
     public function __construct(int $statusCode = 500, string $message = 'JWE Decryption Failed.', ?Exception $previous = null, array $headers = [], int $code = 0)
     {
         parent::__construct($statusCode, $message, $previous, $headers, $code);

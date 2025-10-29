@@ -2,6 +2,7 @@
 
 namespace Shokanshi\SingpassMyInfo\Providers;
 
+use Illuminate\Contracts\Foundation\Application;
 use Laravel\Socialite\Facades\Socialite;
 use Shokanshi\SingpassMyInfo\Services\Socialites\SingpassProvider;
 use Spatie\LaravelPackageTools\Package;
@@ -26,8 +27,11 @@ class SingpassMyInfoServiceProvider extends PackageServiceProvider
 
     public function bootingPackage(): void
     {
-        Socialite::extend('singpass', function ($app) {
-            $config = $app['config']['singpass-myinfo'];
+        Socialite::extend('singpass', function (Application $app) {
+
+            $config = app('config')['singpass-myinfo'];
+
+            assert(is_array($config));
 
             return Socialite::buildProvider(SingpassProvider::class, $config);
         });
