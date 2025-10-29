@@ -44,8 +44,7 @@
             "Shokanshi\\SingpassMyInfo\\Database\\Factories\\": "database/factories/"
         },
         "files": [
-            "src/helpers.php",
-            "config/singpass-myinfo.php"
+            "src/helpers.php"
         ]
     },
     "autoload-dev": {
