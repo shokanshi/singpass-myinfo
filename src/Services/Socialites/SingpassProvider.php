@@ -561,11 +561,12 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         $name = '';
         $email = '';
 
-        if (array_key_exists('name', $user) && is_array($user['name'])) {
+        // if (array_key_exists('name', $user) && is_array($user['name'])) {
+        if (isset($user['name']) && is_array($user['name'])) {
             $name = $user['name']['value'];
         }
 
-        if (array_key_exists('email', $user) && is_array($user['email'])) {
+        if (isset($user['email']) && is_array($user['email'])) {
             $email = $user['email']['value'];
         }
 
