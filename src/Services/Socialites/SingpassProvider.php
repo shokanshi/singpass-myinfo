@@ -66,6 +66,15 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
     protected ?JWKSet $decryptionJwks = null;
 
+    /**
+     * Create a new provider instance.
+     *
+     * @param  string  $clientId
+     * @param  string  $clientSecret
+     * @param  string  $redirectUrl
+     * @param  array<string, string>  $guzzle
+     * @return void
+     */
     public function __construct(Request $request, $clientId, $clientSecret, $redirectUrl, $guzzle = [])
     {
         // Singpass uses pkce
@@ -288,7 +297,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
         assert(is_array($response));
 
-        if (isset($response['error']) && isset($response['error_description'])) {
+        if (isset($response['error']) && isset($response['error_description']) && is_string($response['error_description'])) {
             throw new SingpassTokenException(500, $response['error_description']);
         }
 
