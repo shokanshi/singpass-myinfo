@@ -6,6 +6,7 @@ use Exception;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\ServerException;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
@@ -53,6 +54,7 @@ use Shokanshi\SingpassMyInfo\Exceptions\JwtDecodeFailedException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwtPayloadException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassJwksException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassPrivateKeyMissingException;
+use Shokanshi\SingpassMyInfo\Exceptions\SingpassTokenException;
 use stdClass;
 use Symfony\Component\Clock\NativeClock;
 
@@ -63,6 +65,23 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     protected ?JWKSet $signingJwks = null;
 
     protected ?JWKSet $decryptionJwks = null;
+
+    /**
+     * Create a new provider instance.
+     *
+     * @param  string  $clientId
+     * @param  string  $clientSecret
+     * @param  string  $redirectUrl
+     * @param  array<string, string>  $guzzle
+     * @return void
+     */
+    public function __construct(Request $request, $clientId, $clientSecret, $redirectUrl, $guzzle = [])
+    {
+        // Singpass uses pkce
+        $this->enablePKCE();
+
+        parent::__construct($request, $clientId, $clientSecret, $redirectUrl, $guzzle);
+    }
 
     /**
      * You can directly update the client id bypassing config file. Great for multitenancy application
@@ -213,8 +232,8 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
         assert(is_string($config['authorization_endpoint']));
 
-        // Singpass uses pkce and nonce
-        return $this->enablePKCE()->with([
+        // Singpass uses nonce
+        return $this->with([
             'nonce' => (string) Str::uuid(),
         ])->buildAuthUrlFromBase($config['authorization_endpoint'], $state);
     }
@@ -232,9 +251,6 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     {
         // construct token exchange request
         try {
-            // Singpass uses pkce
-            $this->enablePKCE();
-
             $clientAssertion = $this->generateClientAssertion();
 
             $response = Http::bodyFormat('form_params')
@@ -280,6 +296,10 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         $response = $this->getAccessTokenResponse($this->getCode());
 
         assert(is_array($response));
+
+        if (isset($response['error']) && isset($response['error_description']) && is_string($response['error_description'])) {
+            throw new SingpassTokenException(500, $response['error_description']);
+        }
 
         assert(is_string(Arr::get($response, 'id_token')));
 
