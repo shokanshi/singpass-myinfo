@@ -557,8 +557,17 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     protected function mapUserToObject($user)
     {
         assert(is_string($user['sub']));
-        assert(! isset($user['name']) || is_array($user['name']));
-        assert(! isset($user['email']) || is_array($user['email']));
+
+        $name = '';
+        $email = '';
+
+        if (array_key_exists('name', $user) && is_array($user['name'])) {
+            $name = $user['name']['value'];
+        }
+
+        if (array_key_exists('email', $user) && is_array($user['email'])) {
+            $email = $user['email']['value'];
+        }
 
         $parseUserData = $this->parseUser($user['sub']);
 
@@ -566,8 +575,8 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
         return (new User)->setRaw($user)->map([
             'id' => $user['id'],
-            'name' => $user['name']['value'] ?? '',
-            'email' => $user['email']['value'] ?? '',
+            'name' => $name,
+            'email' => $email,
         ]);
     }
 
