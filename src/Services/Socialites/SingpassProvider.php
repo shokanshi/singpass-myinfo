@@ -557,8 +557,8 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     protected function mapUserToObject($user)
     {
         assert(is_string($user['sub']));
-        assert(is_array($user['name']));
-        assert(is_array($user['email']));
+        assert(! isset($user['name']) || is_array($user['name']));
+        assert(! isset($user['email']) || is_array($user['email']));
 
         $parseUserData = $this->parseUser($user['sub']);
 
