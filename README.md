@@ -4,7 +4,7 @@
 [![Total Downloads](https://img.shields.io/packagist/dt/shokanshi/singpass-myinfo.svg?style=flat-square)](https://packagist.org/packages/shokanshi/singpass-myinfo)
 [![PHP Version](https://img.shields.io/packagist/php-v/shokanshi/singpass-myinfo)](https://packagist.org/packages/shokanshi/singpass-myinfo)
 
-The purpose of this Laravel package is to make it very easy for PHP (8.2+) developers to integrate [Singpass MyInfo v5](https://docs.developer.singpass.gov.sg/docs/products/myinfo/introduction).
+The purpose of this Laravel package is to make it very easy for PHP (8.3+) developers to integrate [Singpass MyInfo v5](https://docs.developer.singpass.gov.sg/docs/products/myinfo/introduction).
 
 [FAPI 2.0](https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api) support is currently not available as Singpass staging and production servers will only be ready in December 2025 and January 2026 respectively.
 
@@ -50,7 +50,6 @@ Add the following variables to your `.env` file and adjust accordingly to your a
 ```ini
 # Singpass variables
 SINGPASS_CLIENT_ID=
-SINGPASS_REDIRECT_URI=https://your-company.com/sp/callback
 
 # Base folder is ./storage/app
 SINGPASS_SIGNING_PRIVATE_KEY_FILE=secure/your-singpass-signing-private.pem
@@ -232,19 +231,23 @@ class MySingpassAuthController extends Controller
 1. For the above example, the same customization has to be applied to `callback_endpoint_controller` and `jwks_endpoint_controller` since the endpoint is now based on environment of the application.
 2. The above is just an example to illustrate how you may customize the controllers.
 
-## Methods Available
-
-If you have a multitenancy application and would like to allow onboarding of individual tenant onto Singpass, the following methods will be useful to you. You can setup custom controllers (like the [example](#example) above) to handle the aspect of multitenancy with them.
+## Using the Socialite Provider
 
 ### `singpass(): SingpassProvider`
 
 A helper method that return the SingpassProvider Socialite object.
+
+In the event where `singpass()` is not available (likely in conflict with another helper method in your project), you can still access the Socialite by calling `Socialite::driver('singpass')`.
 
 ---
 
 ### `user(): \Laravel\Socialite\Contracts\User`
 
 Return the Socialite user object.
+
+## Methods Available
+
+If you have a multitenancy application and would like to allow onboarding of individual tenant onto Singpass, the following methods will be useful to you. You can setup custom controllers (like the [example](#example) above) to handle the aspect of multitenancy with them.
 
 ---
 
