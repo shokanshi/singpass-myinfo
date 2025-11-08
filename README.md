@@ -106,8 +106,7 @@ return [
 
     'client_id' => env('SINGPASS_CLIENT_ID'),
 
-    // if the setting defined in callback_endpoint_url is: sp/callback
-    // the callback url will be: https://your-company.com/sp/callback
+    // this setting is here because socialite requires it to be defined. SingpassProvider will always overwrite it to route('singpass.callback')
     'redirect' => env('SINGPASS_REDIRECT_URI'),
 
     // the private key file that your application will be used for signing
@@ -213,7 +212,6 @@ class MySingpassAuthController extends Controller
             $singpass
                 ->setClientId('staging client id')
                 ->setOpenIdDiscoveryUrl('https://stg-id.singpass.gov.sg/.well-known/openid-configuration')
-                ->setRedirectUrl(route('singpass.login'))
                 ->addSigningKey(Storage::disk('local')->get('stage_signing_key_1.pem'))
                 ->addDecryptionKey(Storage::disk('local')->get('stage_decryption_key_1.pem'));
         })
@@ -221,7 +219,6 @@ class MySingpassAuthController extends Controller
             $singpass
                 ->setClientId('production client id')
                 ->setOpenIdDiscoveryUrl('https://id.singpass.gov.sg/.well-known/openid-configuration')
-                ->setRedirectUrl(route('singpass.login'))
                 ->addSigningKey(Storage::disk('local')->get('prod_signing_key_1.pem'))
                 ->addDecryptionKey(Storage::disk('local')->get('prod_decryption_key_1.pem'));
         })
@@ -285,7 +282,7 @@ Overwrite the value of `SINGPASS_DISCOVERY_ENDPOINT` defined in the `.env` file 
 
 ### `setRedirectUrl(string $redirectUrl): self`
 
-Overwrite the value of `SINGPASS_REDIRECT_URI` defined in the `.env` file when called.
+Overwrite the value of `SINGPASS_REDIRECT_URI` defined in the `.env` file when called. Useful when your application have different redirects based on certain business logic.
 
 #### Parameters
 
@@ -434,8 +431,7 @@ class MySingpassJwksEndpointController extends Controller
         singpass()
             ->setClientId($tenant->singpass_client_id)
             ->setOpenIdDiscoveryUrl($tenant->singpass_openid_discovery_endpoint)
-            ->setScopes([$tenant->singpass_scopes])
-            ->setRedirectUrl(route('singpass.login'));
+            ->setScopes([$tenant->singpass_scopes]);
 
         foreach ($tenant->singpassPrivateKeys() as $key) {
             singpass()

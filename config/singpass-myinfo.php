@@ -10,8 +10,7 @@ return [
 
     'client_id' => env('SINGPASS_CLIENT_ID'),
 
-    // if the setting defined in callback_endpoint_url is: sp/callback
-    // the callback url will be: https://your-company.com/sp/callback
+    // this setting is here because socialite requires it to be defined. SingpassProvider will always overwrite it to route('singpass.callback') unless setRedirectUrl() is called
     'redirect' => env('SINGPASS_REDIRECT_URI'),
 
     // the private key file that your application will be used for signing

@@ -12,6 +12,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Traits\Conditionable;
@@ -79,6 +80,17 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     {
         // Singpass uses pkce
         $this->enablePKCE();
+
+        // remove the need to define SINGPASS_REDIRECT_URI in .env file for login and callback endpoint
+        if (match (Route::currentRouteName()) {
+            'singpass.callback',
+            'singpass.login', => true,
+
+            // jwks endpoint does not use redirectUrl
+            default => false
+        }) {
+            $redirectUrl = route('singpass.callback', $request->route()->parameters ?? []);
+        }
 
         parent::__construct($request, $clientId, $clientSecret, $redirectUrl, $guzzle);
     }
