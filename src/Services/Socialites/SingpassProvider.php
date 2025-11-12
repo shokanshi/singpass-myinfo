@@ -96,6 +96,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: setClientId
      * You can directly update the client id bypassing config file. Great for multitenancy application
      */
     public function setClientId(string $clientId): self
@@ -106,6 +107,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: setRedirectUrl
      * You can directly update the redirect url bypassing config file. Great for multitenancy application
      */
     public function setRedirectUrl(string $redirectUrl): self
@@ -116,6 +118,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: addSigningKeyFromJsonObject
      * This method is similar to addSigningKey() except that it accepts a json encoded jwk
      */
     public function addSigningKeyFromJsonObject(
@@ -142,6 +145,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: addSigningKey
      * Instead of using a pem file, you can set the content of the pem file here. Great for multitenancy application and
      * key rotation. In fact, it is recommended you use this function for assigning keys so that key rotation can be handled
      * seamlessly when you couple it with ->when()
@@ -171,6 +175,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: addDecryptionKeyFromJsonObject
      * This method is similar to addDecryptionKey() except that it accepts a json encoded jwk
      */
     public function addDecryptionKeyFromJsonObject(
@@ -195,6 +200,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: addDecryptionKey
      * Instead of using a pem file, you can set the content of the pem file here. Great for multitenancy application and
      * key rotation. In fact, it is recommended you use this function for assigning keys so that key rotation can be handled
      * seamlessly when you couple it with ->when()
@@ -223,6 +229,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         return $this;
     }
 
+    /**
+     * MARK: setOpenIdDiscoveryUrl
+     */
     public function setOpenIdDiscoveryUrl(string $url): self
     {
         config(['singpass-myinfo.openid_discovery_endpoint' => $url]);
@@ -230,7 +239,10 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         return $this;
     }
 
-    // Return an Authorization Endpoint that will be used to redirect to Singpass
+    /**
+     * MARK: getAuthUrl
+     * Return an Authorization Endpoint that will be used to redirect to Singpass
+     */
     protected function getAuthUrl($state)
     {
         if ($this->isStateless()) {
@@ -250,6 +262,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         ])->buildAuthUrlFromBase($config['authorization_endpoint'], $state);
     }
 
+    /**
+     * MARK: getTokenUrl
+     */
     protected function getTokenUrl(): string
     {
         $config = $this->getOpenIDConfiguration();
@@ -259,6 +274,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         return $config['token_endpoint'];
     }
 
+    /**
+     * MARK: getAccessTokenResponse
+     */
     public function getAccessTokenResponse($code)
     {
         // construct token exchange request
@@ -295,6 +313,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         }
     }
 
+    /**
+     * MARK: user
+     */
     public function user()
     {
         if ($this->user) {
@@ -337,7 +358,10 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         return $this->userInstance($response, $user);
     }
 
-    // A Client Assertion which replace the need of client secret
+    /**
+     * MARK: generateClientAssertion
+     * A Client Assertion which replace the need of client secret
+     */
     private function generateClientAssertion(): string
     {
         $config = $this->getOpenIDConfiguration();
@@ -395,6 +419,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: getUserByToken
      * Retrieves the user data from the MyInfo API using the provided token.
      *
      * @param  string  $token  The access token from Singpass.
@@ -434,6 +459,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: decodeJWS
      * Decodes and verifies the ID Token JWS.
      *
      * @param  string  $idToken  The raw ID Token string.
@@ -490,6 +516,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: getSingpassJwks
      * retrieve the jwks from Singpass
      */
     private function getSingpassJwks(): JWKSet
@@ -508,6 +535,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: verifyIdToken
      * Verifies the ID token claims against the client ID.
      *
      * @param  array<string, mixed>  $claims  The JWT payload claims to verify.
@@ -518,6 +546,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: verifyAccessToken
      * Verifies the access token claims against the userinfo endpoint audience.
      *
      * @param  array<string, mixed>  $claims  The JWT payload claims to verify.
@@ -533,6 +562,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: checkClaims
      * Checks the JWT claims against expected values.
      *
      * @param  array<string, mixed>  $claims  The JWT payload claims to validate.
@@ -558,6 +588,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         }
     }
 
+    /**
+     * MARK: decryptJWE
+     */
     private function decryptJWE(string $idToken): ?string
     {
         $algorithmManager = new AlgorithmManager([
@@ -581,6 +614,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: mapUserToObject
      * Map the raw user array to a Socialite User instance.
      *
      * @param  array<string, mixed>  $user
@@ -614,6 +648,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: parseUser
      * Split the JWT claims sub and convert to a dictionary type
      *
      * @return array<string, mixed>
@@ -631,6 +666,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: getOpenIDConfiguration
      * Retrieve Singpass API OpenID configuration
      *
      * @return array<string, mixed>
@@ -657,6 +693,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         return $openIDConfig;
     }
 
+    /**
+     * MARK: verifyTokenSignature
+     */
     private function verifyTokenSignature(string $token): stdClass|bool
     {
         $signatureAlgoManager = new AlgorithmManager([
@@ -692,6 +731,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: retrieveSingpassVerificationKey
      * Load the Singpass API verification key from Singpass JWKS endpoints
      *
      * @throws GuzzleException
@@ -732,6 +772,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: getMyInfoJWE
      * Retrieve MyInfo JWE from Singpass
      */
     private function getMyInfoJWE(string $token): string
@@ -763,6 +804,8 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: getSigningJwks
+     *
      * @throws JwksInvalidException
      */
     private function getSigningJwks(): JWKSet
@@ -786,6 +829,8 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: getDecryptionJwks
+     *
      * @throws JwksInvalidException
      */
     private function getDecryptionJwks(): JWKSet
@@ -809,6 +854,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: generateJwksForSingpassPortal
      * Generates the JWKS structure for the Singpass Portal.
      *
      * @return array{keys: array<JWK>}
@@ -831,6 +877,8 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     }
 
     /**
+     * MARK: getPrivateKeyFileContent
+     *
      * @throws SingpassPrivateKeyMissingException
      */
     private function getPrivateKeyFileContent(string $file): string
