@@ -54,6 +54,7 @@ use Shokanshi\SingpassMyInfo\Exceptions\JwksInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwtDecodeFailedException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwtPayloadException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassJwksException;
+use Shokanshi\SingpassMyInfo\Exceptions\SingpassMissingRedirectUrlException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassPrivateKeyMissingException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassTokenException;
 use stdClass;
@@ -247,6 +248,10 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     {
         if ($this->isStateless()) {
             return '';
+        }
+
+        if (! $this->redirectUrl) {
+            throw new SingpassMissingRedirectUrlException('Redirect url is missing', 400);
         }
 
         $config = $this->getOpenIDConfiguration();
