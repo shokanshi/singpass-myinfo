@@ -302,7 +302,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
                     'code_verifier' => $this->request->session()->get('code_verifier'),
                 ]);
 
-            return json_decode($response->getBody(), true);
+            return json_decode($response->body(), true);
 
         } catch (ClientException $requestException) {
             Log::error($requestException->getMessage());
@@ -690,7 +690,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         assert(is_string(config('singpass-myinfo.openid_discovery_endpoint')));
 
         $response = Http::withHeader('Accept', 'application/json')->get(config('singpass-myinfo.openid_discovery_endpoint'));
-        $openIDConfig = json_decode($response->getBody()->getContents(), true);
+        $openIDConfig = json_decode($response->body(), true);
 
         Cache::put('singpassOpenIDConfig', $openIDConfig, now()->addHour());
 
@@ -750,7 +750,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
             $response = Http::withHeader('Accept', 'application/json')->get($config['jwks_uri']);
 
-            $singpassJWKS = $response->getBody()->getContents();
+            $singpassJWKS = $response->body();
 
             $jwks = JWKSet::createFromJson($singpassJWKS);
 
@@ -787,7 +787,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
             $response = Http::withToken($token)->get($config['userinfo_endpoint']);
 
-            $content = $response->getBody()->getContents();
+            $content = $response->body();
 
             if ($response->failed()) {
                 $errorResponse = json_decode($content, true);
@@ -798,7 +798,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
                 throw new JweInvalidException($errorResponse['error_description'], $response->status());
             }
 
-            return $content;
+            return (string) $content;
 
         } catch (RequestException $e) {
             Log::error('Unable to retrieve MyInfo JWE: '.$e->getMessage());
