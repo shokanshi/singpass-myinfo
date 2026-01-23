@@ -50,6 +50,7 @@ use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\ProviderInterface;
 use Laravel\Socialite\Two\User;
 use SensitiveParameter;
+use Shokanshi\SingpassMyInfo\Exceptions\JweInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwkInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwksInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwtDecodeFailedException;
@@ -788,14 +789,19 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
             $content = $response->getBody()->getContents();
 
-        } catch (ServerException $e) {
-            $errorResponse = $e->getResponse()->getBody()->getContents();
-            $errorResponse = json_decode($errorResponse, true);
+            if ($response->failed()) {
+                $errorResponse = json_decode($content, true);
 
-            // Prove to PHPStan that $errorResponse is an array before logging it.
-            assert(is_array($errorResponse));
+                assert(is_array($errorResponse));
+                assert(is_string($errorResponse['error_description']));
 
-            Log::error('Unable to retrieve Singpass JWKS', $errorResponse);
+                throw new JweInvalidException($errorResponse['error_description'], $response->status());
+            }
+
+            return $content;
+
+        } catch (RequestException $e) {
+            Log::error('Unable to retrieve MyInfo JWE: '.$e->getMessage());
             abort(Response::HTTP_BAD_GATEWAY, 'Unable to login using Singpass right now');
         }
     }
