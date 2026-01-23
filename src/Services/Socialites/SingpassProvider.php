@@ -6,6 +6,7 @@ use Exception;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\ServerException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
@@ -687,10 +688,8 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
         assert(is_string(config('singpass-myinfo.openid_discovery_endpoint')));
 
-        $response = $this->getHttpClient()->get(config('singpass-myinfo.openid_discovery_endpoint'), [
-            'headers' => ['Accept' => 'application/json'],
-        ]);
-        $openIDConfig = json_decode($response->getBody(), true);
+        $response = Http::withHeader('Accept', 'application/json')->get(config('singpass-myinfo.openid_discovery_endpoint'));
+        $openIDConfig = json_decode($response->getBody()->getContents(), true);
 
         Cache::put('singpassOpenIDConfig', $openIDConfig, now()->addHour());
 
@@ -748,9 +747,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
             assert(is_string($config['jwks_uri']));
 
-            $response = $this->getHttpClient()->get($config['jwks_uri'], [
-                'headers' => ['Accept' => 'application/json',
-                ]]);
+            $response = Http::withHeader('Accept', 'application/json')->get($config['jwks_uri']);
 
             $singpassJWKS = $response->getBody()->getContents();
 
@@ -787,14 +784,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
             assert(is_string($config['userinfo_endpoint']));
 
-            $response = $this->getHttpClient()
-                ->get($config['userinfo_endpoint'], [
-                    'headers' => [
-                        'Content-Type' => 'application/x-www-form-urlencoded; charset=ISO-8859-1',
-                        'Authorization' => "Bearer {$token}",
-                    ]]);
+            $response = Http::withToken($token)->get($config['userinfo_endpoint']);
 
-            return $response->getBody()->getContents();
+            $content = $response->getBody()->getContents();
 
         } catch (ServerException $e) {
             $errorResponse = $e->getResponse()->getBody()->getContents();
