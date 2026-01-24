@@ -261,12 +261,29 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         // Singpass uses space as scope separator
         $this->scopeSeparator = ' ';
 
-        assert(is_string($config['authorization_endpoint']));
+        assert(is_string($config['pushed_authorization_request_endpoint']));
 
-        // Singpass uses nonce
-        return $this->with([
-            'nonce' => (string) Str::uuid(),
-        ])->buildAuthUrlFromBase($config['authorization_endpoint'], $state);
+        $clientAssertion = $this->generateClientAssertion();
+
+        $dpopProof = $this->generateDPoPProof($config['pushed_authorization_request_endpoint']);
+        info('validate dpop', [$this->validateDpopProof($dpopProof, 'POST', $config['token_endpoint'])]);
+
+        $data = $this->getCodeFields($state);
+        $data['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
+        $data['client_assertion'] = $clientAssertion;
+        $data['nonce'] = (string) Str::uuid();
+
+        $response = Http::bodyFormat('form_params')
+            ->contentType('application/x-www-form-urlencoded')
+            ->withHeader('DPoP', $dpopProof)
+            ->post($config['pushed_authorization_request_endpoint'], $data);
+
+        $data = json_decode($response->body(), true);
+
+        return $config['authorization_endpoint'].'?'.http_build_query([
+            'client_id' => $this->clientId,
+            'request_uri' => $data['request_uri'],
+        ], '', '&', $this->encodingType);
     }
 
     /**
@@ -403,26 +420,77 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             'iss' => $this->clientId,
             'iat' => $issuedAt->unix(),
             'exp' => $issuedAt->addMinutes(2)->unix(),
+            // 'jti' => (string) Str::uuid(),
         ]);
 
-        if (! $payload) {
-            throw new JwtPayloadException;
-        }
-
         // build jwt
-        $jwt = $jwsBuilder->create()
+        $jws = $jwsBuilder->create()
             ->withPayload($payload) // insert claims data
             ->addSignature($signingJwk, [
-                'typ' => 'JWT',
+                'typ' => 'JWS',
                 'alg' => 'ES256',
                 'kid' => $signingJwk->get('kid'),
             ]) // sign it and add the JWS protected header
             ->build();
 
-        $serializer = new CompactSerializer; // The serializer
+        // serialize to compact format
+        return (new CompactSerializer)->serialize($jws);
+    }
 
-        // generate base64 encoded JWT client assertion
-        return $serializer->serialize($jwt);
+    private function generateDPoPProof(string $url, ?string $accessToken = null): string
+    {
+        $config = $this->getOpenIDConfiguration();
+
+        $algorithmManager = new AlgorithmManager([
+            new ES256,
+        ]);
+
+        $jwsBuilder = new JWSBuilder($algorithmManager);
+
+        // JWT issue timestamp
+        $issuedAt = now();
+
+        $signingJwk = null;
+
+        // get the first jwk
+        foreach ($this->getSigningJwks() as $jwk) {
+            $signingJwk = $jwk;
+
+            break;
+        }
+
+        if (! ($signingJwk instanceof JWK)) {
+            throw new JwkInvalidException;
+        }
+
+        $claims = [
+            'htm' => 'POST',              // HTTP method: GET or POST
+            'htu' => $url,  // Target URL (no query/fragment)
+            'iat' => $issuedAt->unix(),          // Issued at (Unix timestamp in seconds)
+            'exp' => $issuedAt->addMinutes(2)->unix(),          // Expiry (max 2 minutes after iat)
+            'jti' => (string) Str::uuid(),     // Unique identifier (generate new for each request)
+        ];
+
+        if ($accessToken) {
+            $claims['ath'] = $this->base64UrlEncode(hash('sha256', $accessToken, true)); // Required only for /userinfo: SHA-256 hash of access token
+        }
+
+        $payload = json_encode($claims);
+
+        $protectedHeader = [
+            'typ' => 'dpop+jwt',
+            'alg' => 'ES256',
+            'jwk' => $signingJwk->toPublic(),
+        ];
+
+        // create and sign jws
+        $jws = $jwsBuilder->create()
+            ->withPayload($payload) // insert claims data
+            ->addSignature($signingJwk, $protectedHeader) // sign it and add the JWS protected header
+            ->build();
+
+        // serialize to compact format
+        return (new CompactSerializer)->serialize($jws, 0);
     }
 
     /**
@@ -896,5 +964,144 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         assert($content !== null);
 
         return $content;
+    }
+
+    /**
+     * Base64URL encoding (no padding)
+     */
+    private function base64UrlEncode(string $data): string
+    {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
+
+    public function validateDpopProof(string $dpopProof, string $expectedMethod, string $expectedUrl, ?string $accessToken = null): array
+    {
+        $serializer = new CompactSerializer;
+        $jws = $serializer->unserialize($dpopProof);
+
+        // Get headers and payload
+        $headers = $jws->getSignature(0)->getProtectedHeader();
+        $payload = json_decode($jws->getPayload(), true);
+
+        $errors = [];
+        $checks = [];
+
+        // Check 1: Header type
+        if (($headers['typ'] ?? '') !== 'dpop+jwt') {
+            $errors[] = "Header 'typ' must be 'dpop+jwt', got: ".($headers['typ'] ?? 'missing');
+        } else {
+            $checks[] = '✓ Header type is dpop+jwt';
+        }
+
+        // Check 2: Algorithm
+        if (($headers['alg'] ?? '') !== 'ES256') {
+            $errors[] = 'Algorithm must be ES256, got: '.($headers['alg'] ?? 'missing');
+        } else {
+            $checks[] = '✓ Algorithm is ES256';
+        }
+
+        // Check 3: JWK presence and format
+        if (! isset($headers['jwk'])) {
+            $errors[] = "Missing 'jwk' in header";
+        } else {
+            $jwk = $headers['jwk'];
+            if (($jwk['kty'] ?? '') !== 'EC') {
+                $errors[] = 'JWK kty must be EC';
+            } elseif (($jwk['crv'] ?? '') !== 'P-256') {
+                $errors[] = 'JWK crv must be P-256';
+            } elseif (! isset($jwk['x']) || ! isset($jwk['y'])) {
+                $errors[] = 'JWK missing x or y coordinates';
+            } else {
+                $checks[] = '✓ JWK is valid EC P-256 key';
+            }
+
+            // Ensure private key is NOT in header
+            if (isset($jwk['d'])) {
+                $errors[] = "CRITICAL: Private key 'd' found in header! Remove it!";
+            }
+        }
+
+        // Check 4: Required claims
+        $required = ['htm', 'htu', 'iat', 'exp', 'jti'];
+        foreach ($required as $claim) {
+            if (! isset($payload[$claim])) {
+                $errors[] = "Missing required claim: $claim";
+            }
+        }
+        if (empty(array_diff($required, array_keys($payload)))) {
+            $checks[] = '✓ All required claims present';
+        }
+
+        // Check 5: HTTP method matches
+        if (($payload['htm'] ?? '') !== strtoupper($expectedMethod)) {
+            $errors[] = "htm claim '{$payload['htm']}' doesn't match expected '$expectedMethod'";
+        } else {
+            $checks[] = '✓ htm matches expected method';
+        }
+
+        // Check 6: URL normalization (no query params)
+        $normalizedExpected = explode('?', $expectedUrl)[0];
+        if (($payload['htu'] ?? '') !== $normalizedExpected) {
+            $errors[] = "htu claim '{$payload['htu']}' doesn't match expected '$normalizedExpected' (must be normalized, no query params)";
+        } else {
+            $checks[] = '✓ htu is normalized correctly';
+        }
+
+        // Check 7: Timing (max 2 minutes)
+        $iat = $payload['iat'] ?? 0;
+        $exp = $payload['exp'] ?? 0;
+        $duration = $exp - $iat;
+
+        if ($duration > 120) {
+            $errors[] = "Token lifetime ($duration seconds) exceeds 120 seconds maximum";
+        } elseif ($duration <= 0) {
+            $errors[] = 'Invalid token timing (exp <= iat)';
+        } else {
+            $checks[] = "✓ Token lifetime is $duration seconds (<= 120)";
+        }
+
+        // Check 8: ATH claim for userinfo
+        if ($accessToken) {
+            if (! isset($payload['ath'])) {
+                $errors[] = "Missing 'ath' claim (required when access token is present)";
+            } else {
+                $expectedAth = rtrim(strtr(base64_encode(hash('sha256', $accessToken, true)), '+/', '-_'), '=');
+                if ($payload['ath'] !== $expectedAth) {
+                    $errors[] = "ath claim mismatch. Expected: $expectedAth, Got: {$payload['ath']}";
+                } else {
+                    $checks[] = '✓ ath claim matches SHA-256 hash of access token';
+                }
+            }
+        } else {
+            if (isset($payload['ath'])) {
+                $errors[] = 'ath claim should not be present for token endpoint';
+            } else {
+                $checks[] = '✓ No ath claim (correct for token endpoint)';
+            }
+        }
+
+        // Check 9: Verify signature
+        try {
+            $algorithmManager = new \Jose\Component\Core\AlgorithmManager([new ES256]);
+            $verifier = new JWSVerifier($algorithmManager);
+            $jwk = JWK::createFromJson(json_encode($headers['jwk']));
+
+            if (! $verifier->verifyWithKey($jws, $jwk, 0)) {
+                $errors[] = 'Signature verification failed';
+            } else {
+                $checks[] = '✓ Signature is valid';
+            }
+        } catch (\Exception $e) {
+            $errors[] = 'Signature verification error: '.$e->getMessage();
+        }
+
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors,
+            'checks' => $checks,
+            'header' => $headers,
+            'payload' => $payload,
+            'raw_payload' => $jws->getPayload(),
+        ];
     }
 }
