@@ -17,18 +17,10 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Traits\Conditionable;
-use InvalidArgumentException;
-use Jose\Component\Checker\AlgorithmChecker;
-use Jose\Component\Checker\AudienceChecker;
-use Jose\Component\Checker\ClaimCheckerManager;
-use Jose\Component\Checker\ExpirationTimeChecker;
-use Jose\Component\Checker\HeaderCheckerManager;
-use Jose\Component\Checker\InvalidClaimException;
-use Jose\Component\Checker\IssuedAtChecker;
-use Jose\Component\Checker\IssuerChecker;
 use Jose\Component\Core\AlgorithmManager;
 use Jose\Component\Core\JWK;
 use Jose\Component\Core\JWKSet;
+use Jose\Component\Encryption\Algorithm\ContentEncryption\A256CBCHS512;
 use Jose\Component\Encryption\Algorithm\ContentEncryption\A256GCM;
 use Jose\Component\Encryption\Algorithm\KeyEncryption\ECDHESA128KW;
 use Jose\Component\Encryption\Algorithm\KeyEncryption\ECDHESA192KW;
@@ -674,6 +666,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     {
         $algorithmManager = new AlgorithmManager([
             new A256GCM,
+            new A256CBCHS512,
             new ECDHESA128KW,
             new ECDHESA192KW,
             new ECDHESA256KW,
