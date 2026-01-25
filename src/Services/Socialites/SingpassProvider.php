@@ -563,8 +563,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         $raw = $user;
 
         // singpass login
-        if (isset($user['sub_type'])) {
-        } elseif (isset($user['sub_attributes']) && is_array($user['sub_attributes'])) {
+        if (isset($user['sub_attributes']) && is_array($user['sub_attributes'])) {
             if (is_string($user['sub_attributes']['name'])) {
                 $name = $user['sub_attributes']['name'];
             }
@@ -578,7 +577,6 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
         // myinfo
         elseif (isset($user['person_info']) && is_array($user['person_info'])) {
-            // if (array_key_exists('name', $user) && is_array($user['name'])) {
             if (is_array($user['person_info']['name'])) {
                 $name = $user['person_info']['name']['value'];
             }
