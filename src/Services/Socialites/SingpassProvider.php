@@ -561,49 +561,50 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
      * @param  array<string, mixed>  $user
      * @return User
      */
-    protected function mapUserToObject($user)
+    protected function mapUserToObject(array $user)
     {
         assert(is_string($user['sub']));
 
         $name = '';
         $email = '';
 
-        // if (array_key_exists('name', $user) && is_array($user['name'])) {
-        if (isset($user['name']) && is_array($user['name'])) {
-            $name = $user['name']['value'];
+        $raw = $user;
+
+        // singpass login
+        if (isset($user['sub_type'])) {
+        } elseif (isset($user['sub_attributes']) && is_array($user['sub_attributes'])) {
+            if (is_string($user['sub_attributes']['name'])) {
+                $name = $user['sub_attributes']['name'];
+            }
+
+            if (is_string($user['sub_attributes']['email'])) {
+                $email = $user['sub_attributes']['email'];
+            }
+
+            $raw = $user['sub_attributes'];
         }
 
-        if (isset($user['email']) && is_array($user['email'])) {
-            $email = $user['email']['value'];
+        // myinfo
+        elseif (isset($user['person_info']) && is_array($user['person_info'])) {
+            // if (array_key_exists('name', $user) && is_array($user['name'])) {
+            if (is_array($user['person_info']['name'])) {
+                $name = $user['person_info']['name']['value'];
+            }
+
+            if (is_array($user['person_info']['email'])) {
+                $email = $user['person_info']['email']['value'];
+            }
+
+            $user['person_info']['id'] = $user['sub'];
+
+            $raw = $user['person_info'];
         }
 
-        $parseUserData = $this->parseUser($user['sub']);
-
-        $user['id'] = $parseUserData['u'] ?? '';
-
-        return (new User)->setRaw($user)->map([
-            'id' => $user['id'],
+        return (new User)->setRaw($raw)->map([
+            'id' => $user['sub'],
             'name' => $name,
             'email' => $email,
         ]);
-    }
-
-    /**
-     * MARK: parseUser
-     * Split the JWT claims sub and convert to a dictionary type
-     *
-     * @return array<string, mixed>
-     */
-    private function parseUser(string $content): array
-    {
-        $processedData = [];
-        $dataRecord = explode(',', $content);
-        foreach ($dataRecord as $record) {
-            $data = explode('=', $record);
-            $processedData[$data[0]] = $data[1] ?? '';
-        }
-
-        return $processedData;
     }
 
     /**
