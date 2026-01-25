@@ -425,8 +425,6 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
     private function generateDPoPProof(string $url, string $method = 'POST', ?string $accessToken = null): string
     {
-        // $config = $this->getOpenIDConfiguration();
-
         $algorithmManager = new AlgorithmManager([
             new ES256,
         ]);
