@@ -6,9 +6,13 @@
 
 The purpose of this Laravel package is to make it very easy for PHP (8.3+) developers to integrate [Singpass MyInfo v5](https://docs.developer.singpass.gov.sg/docs/products/myinfo/introduction).
 
-[FAPI 2.0](https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api) support is now available. To use Singpass v5 without FAPI 2.0, please use [v1.1.1](https://github.com/shokanshi/singpass-myinfo/releases/tag/v1.1.1).
+[FAPI 2.0](https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api) support is now available.
 
-**ℹ️ Note:** All APIs must be FAPI 2.0 compliant by 31 Dec 2026.
+**ℹ️ Note:** Production environment for FAPI is currently not yet ready. It is expected to be ready in mid-Feb 2026. If you are integrating now, please use [v1.1.1](https://github.com/shokanshi/singpass-myinfo/releases/tag/v1.1.1).
+
+The endpoint for testing FAPI on staging environment is located at [https://stg-id.singpass.gov.sg/fapi/.well-known/openid-configuration](https://stg-id.singpass.gov.sg/fapi/.well-known/openid-configuration).
+
+Create a new application on Singpass development portal if you encounter the error message `The client assertion is invalid.` when you are testing with your existing application on Singpass staging environment.
 
 ## Requirements
 
