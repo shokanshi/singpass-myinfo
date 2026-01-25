@@ -358,34 +358,26 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             throw new InvalidStateException;
         }
 
+        /** @var array<string, string> $response */
         $response = $this->getAccessTokenResponse($this->getCode());
 
-        assert(is_array($response));
+        $token = '';
 
-        if (isset($response['error']) && isset($response['error_description']) && is_string($response['error_description'])) {
-            throw new SingpassTokenException(500, $response['error_description']);
-        }
-
-        assert(is_string(Arr::get($response, 'id_token')));
-
-        $idTokenClaims = $this->decodeJWS(Arr::get($response, 'id_token'));
-        $this->verifyIdToken($idTokenClaims);
-
-        // return idTokenClaims as user for Singpass login
         if ($this->getScopes() === ['openid']) {
-            $user = $idTokenClaims;
+            // Singpass login uses id_token
+            $token = Arr::get($response, 'id_token');
+
+            assert(is_string($token));
         } else {
             // Singpass MyInfo uses access_token for claims verification
             $accessToken = Arr::get($response, 'access_token');
 
             assert(is_string($accessToken));
 
-            $accessTokenClaims = $this->decodeJWS($accessToken);
-
-            $this->verifyAccessToken($accessTokenClaims);
-
-            $user = $this->getUserByToken($accessToken);
+            $token = $this->getMyInfoJWE($accessToken);
         }
+
+        $user = $this->getUserByToken($token);
 
         return $this->userInstance($response, $user);
     }
