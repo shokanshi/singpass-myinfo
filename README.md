@@ -1,4 +1,4 @@
-# Laravel Socialite Provider For Singpass MyInfo v5
+# Laravel Socialite Provider For Singpass MyInfo v5 (FAPI 2.0)
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/shokanshi/singpass-myinfo.svg?style=flat-square)](https://packagist.org/packages/shokanshi/singpass-myinfo)
 [![Total Downloads](https://img.shields.io/packagist/dt/shokanshi/singpass-myinfo.svg?style=flat-square)](https://packagist.org/packages/shokanshi/singpass-myinfo)
@@ -6,12 +6,14 @@
 
 The purpose of this Laravel package is to make it very easy for PHP (8.3+) developers to integrate [Singpass MyInfo v5](https://docs.developer.singpass.gov.sg/docs/products/myinfo/introduction).
 
-[FAPI 2.0](https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api) support is currently not available as Singpass staging and production servers will only be ready in December 2025 and January 2026 respectively.
+[FAPI 2.0](https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api) support is now available. To use Singpass v5 without FAPI 2.0, please use [v1.1.1](https://github.com/shokanshi/singpass-myinfo/releases/tag/v1.1.1).
+
+**ℹ️ Note:** All APIs must be FAPI 2.0 compliant by 31 Dec 2026.
 
 ## Requirements
 
--   PHP ≥ 8.3
--   Laravel ≥ 11.0
+- PHP ≥ 8.3
+- Laravel ≥ 11.0
 
 ## Support Me
 
@@ -472,7 +474,7 @@ The code of this package is heavily influenced by the code shown in [Laravel Soc
 
 You will also find some code reference from [Accredifysg/SingPass-Login](https://github.com/Accredifysg/SingPass-Login/) in this package.
 
--   [All Contributors](../../contributors)
+- [All Contributors](../../contributors)
 
 ## License
 
