@@ -2,11 +2,8 @@
 
 namespace Shokanshi\SingpassMyInfo\Services\Socialites;
 
-use Exception;
-use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\ServerException;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
@@ -32,8 +29,6 @@ use Jose\Component\Signature\Algorithm\ES256;
 use Jose\Component\Signature\Algorithm\ES384;
 use Jose\Component\Signature\Algorithm\ES512;
 use Jose\Component\Signature\JWSBuilder;
-use Jose\Component\Signature\JWSLoader;
-use Jose\Component\Signature\JWSTokenSupport;
 use Jose\Component\Signature\JWSVerifier;
 use Jose\Component\Signature\Serializer\CompactSerializer;
 use Jose\Component\Signature\Serializer\JWSSerializerManager;
@@ -839,134 +834,18 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         return rtrim(strtr(base64_encode(hash('sha256', $data, true)), '+/', '-_'), '=');
     }
 
-    public function validateDpopProof(string $dpopProof, string $expectedMethod, string $expectedUrl, ?string $accessToken = null): array
+    private function getErrorDescription(string $error): string
     {
-        $serializer = new CompactSerializer;
-        $jws = $serializer->unserialize($dpopProof);
-
-        // Get headers and payload
-        $headers = $jws->getSignature(0)->getProtectedHeader();
-        $payload = json_decode($jws->getPayload(), true);
-
-        $errors = [];
-        $checks = [];
-
-        // Check 1: Header type
-        if (($headers['typ'] ?? '') !== 'dpop+jwt') {
-            $errors[] = "Header 'typ' must be 'dpop+jwt', got: ".($headers['typ'] ?? 'missing');
-        } else {
-            $checks[] = '✓ Header type is dpop+jwt';
-        }
-
-        // Check 2: Algorithm
-        if (($headers['alg'] ?? '') !== 'ES256') {
-            $errors[] = 'Algorithm must be ES256, got: '.($headers['alg'] ?? 'missing');
-        } else {
-            $checks[] = '✓ Algorithm is ES256';
-        }
-
-        // Check 3: JWK presence and format
-        if (! isset($headers['jwk'])) {
-            $errors[] = "Missing 'jwk' in header";
-        } else {
-            $jwk = $headers['jwk'];
-            if (($jwk['kty'] ?? '') !== 'EC') {
-                $errors[] = 'JWK kty must be EC';
-            } elseif (($jwk['crv'] ?? '') !== 'P-256') {
-                $errors[] = 'JWK crv must be P-256';
-            } elseif (! isset($jwk['x']) || ! isset($jwk['y'])) {
-                $errors[] = 'JWK missing x or y coordinates';
-            } else {
-                $checks[] = '✓ JWK is valid EC P-256 key';
-            }
-
-            // Ensure private key is NOT in header
-            if (isset($jwk['d'])) {
-                $errors[] = "CRITICAL: Private key 'd' found in header! Remove it!";
-            }
-        }
-
-        // Check 4: Required claims
-        $required = ['htm', 'htu', 'iat', 'exp', 'jti'];
-        foreach ($required as $claim) {
-            if (! isset($payload[$claim])) {
-                $errors[] = "Missing required claim: $claim";
-            }
-        }
-        if (empty(array_diff($required, array_keys($payload)))) {
-            $checks[] = '✓ All required claims present';
-        }
-
-        // Check 5: HTTP method matches
-        if (($payload['htm'] ?? '') !== strtoupper($expectedMethod)) {
-            $errors[] = "htm claim '{$payload['htm']}' doesn't match expected '$expectedMethod'";
-        } else {
-            $checks[] = '✓ htm matches expected method';
-        }
-
-        // Check 6: URL normalization (no query params)
-        $normalizedExpected = explode('?', $expectedUrl)[0];
-        if (($payload['htu'] ?? '') !== $normalizedExpected) {
-            $errors[] = "htu claim '{$payload['htu']}' doesn't match expected '$normalizedExpected' (must be normalized, no query params)";
-        } else {
-            $checks[] = '✓ htu is normalized correctly';
-        }
-
-        // Check 7: Timing (max 2 minutes)
-        $iat = $payload['iat'] ?? 0;
-        $exp = $payload['exp'] ?? 0;
-        $duration = $exp - $iat;
-
-        if ($duration > 120) {
-            $errors[] = "Token lifetime ($duration seconds) exceeds 120 seconds maximum";
-        } elseif ($duration <= 0) {
-            $errors[] = 'Invalid token timing (exp <= iat)';
-        } else {
-            $checks[] = "✓ Token lifetime is $duration seconds (<= 120)";
-        }
-
-        // Check 8: ATH claim for userinfo
-        if ($accessToken) {
-            if (! isset($payload['ath'])) {
-                $errors[] = "Missing 'ath' claim (required when access token is present)";
-            } else {
-                $expectedAth = rtrim(strtr(base64_encode(hash('sha256', $accessToken, true)), '+/', '-_'), '=');
-                if ($payload['ath'] !== $expectedAth) {
-                    $errors[] = "ath claim mismatch. Expected: $expectedAth, Got: {$payload['ath']}";
-                } else {
-                    $checks[] = '✓ ath claim matches SHA-256 hash of access token';
-                }
-            }
-        } else {
-            if (isset($payload['ath'])) {
-                $errors[] = 'ath claim should not be present for token endpoint';
-            } else {
-                $checks[] = '✓ No ath claim (correct for token endpoint)';
-            }
-        }
-
-        // Check 9: Verify signature
-        try {
-            $algorithmManager = new \Jose\Component\Core\AlgorithmManager([new ES256]);
-            $verifier = new JWSVerifier($algorithmManager);
-            $jwk = JWK::createFromJson(json_encode($headers['jwk']));
-
-            if (! $verifier->verifyWithKey($jws, $jwk, 0)) {
-                $errors[] = 'Signature verification failed';
-            } else {
-                $checks[] = '✓ Signature is valid';
-            }
-        } catch (\Exception $e) {
-            $errors[] = 'Signature verification error: '.$e->getMessage();
-        }
-
-        return [
-            'valid' => empty($errors),
-            'errors' => $errors,
-            'checks' => $checks,
-            'header' => $headers,
-            'payload' => $payload,
-            'raw_payload' => $jws->getPayload(),
-        ];
+        return match ($error) {
+            'invalid_request' => 'The request had missing or invalid parameters. This error will also be returned if DPoP header is missing.',
+            'invalid_client' => 'The client assertion is invalid.',
+            'invalid_scope' => 'The scope parameter is invalid.',
+            'invalid_dpop_proof' => 'The DPoP header which you have provided is invalid, expired, or malformed.',
+            'server_error' => 'The server has encountered an unexpected error. Please try again.',
+            'temporarily_unavailable' => 'The server is temporarily unavailable to handle the request. Please try again at a later time.',
+            'unsupported_grant_type' => 'Invalid grant type.',
+            'invalid_grant' => 'The authorization code has expired or the redirect uri is invalid.',
+            default => 'An error has occurred.'
+        };
     }
 }
