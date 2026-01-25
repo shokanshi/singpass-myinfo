@@ -45,14 +45,11 @@ use SensitiveParameter;
 use Shokanshi\SingpassMyInfo\Exceptions\JweInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwkInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwksInvalidException;
-use Shokanshi\SingpassMyInfo\Exceptions\JwtDecodeFailedException;
-use Shokanshi\SingpassMyInfo\Exceptions\JwtPayloadException;
-use Shokanshi\SingpassMyInfo\Exceptions\SingpassJwksException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassMissingRedirectUrlException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassPrivateKeyMissingException;
+use Shokanshi\SingpassMyInfo\Exceptions\SingpassPushedAuthorizationRequestException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassTokenException;
 use stdClass;
-use Symfony\Component\Clock\NativeClock;
 
 final class SingpassProvider extends AbstractProvider implements ProviderInterface
 {
