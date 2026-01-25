@@ -498,10 +498,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
      */
     protected function getUserByToken($token): array
     {
-        $jwe = $this->getMyInfoJWE($token);
-
         // decrypt the JWE
-        $content = $this->decryptJWE($jwe);
+        /** @var ?string $content */
+        $content = $this->decryptJWE($token);
 
         if (! is_null($content)) {
             // verify the content of JWT
@@ -516,147 +515,17 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             $json = json_encode($jws);
 
             if ($json) {
-                $result = json_decode($json, true);
+                $claims = json_decode($json, true);
 
-                assert(is_array($result));
+                assert(is_array($claims));
 
-                // This PHPDoc comment tells PHPStan to treat $result as an array with string keys.
-                /** @var array<string, mixed> $result */
-                return $result;
+                // This PHPDoc comment tells PHPStan to treat $claims as an array with string keys.
+                /** @var array<string, mixed> $claims */
+                return $claims;
             }
         }
 
         abort(Response::HTTP_BAD_REQUEST, 'Unable to decrypt JWE');
-    }
-
-    /**
-     * MARK: decodeJWS
-     * Decodes and verifies the ID Token JWS.
-     *
-     * @param  string  $idToken  The raw ID Token string.
-     * @return array<string, mixed> The decoded payload claims.
-     */
-    private function decodeJWS(string $idToken): array
-    {
-        $algorithmManager = new AlgorithmManager([
-            new ES256,
-        ]);
-
-        $jwsVerifier = new JWSVerifier($algorithmManager);
-
-        $serializerManager = new JWSSerializerManager([
-            new CompactSerializer,
-        ]);
-
-        try {
-            $kid = $serializerManager->unserialize($idToken)->getSignature(0)->getProtectedHeaderParameter('kid');
-        } catch (InvalidArgumentException) {
-            throw new JwtDecodeFailedException(500, 'JWT supplied is invalid.');
-        }
-
-        try {
-            /** @var JWKSet $jwks */
-            $jwks = $this->getSingpassJwks();
-
-            assert(is_string($kid) || is_int($kid));
-
-            $key = JWKFactory::createFromKeySet($jwks, $kid);
-        } catch (InvalidArgumentException) {
-            throw new JwtDecodeFailedException(500, 'Keyset does not contain KID from JWT.');
-        }
-
-        $headerCheckerManager = new HeaderCheckerManager([
-            new AlgorithmChecker(['ES256']),
-        ], [
-            new JWSTokenSupport,
-        ]);
-
-        $jwsLoader = new JWSLoader($serializerManager, $jwsVerifier, $headerCheckerManager);
-
-        $jws = $jwsLoader->loadAndVerifyWithKey($idToken, $key, $signature);
-
-        $payload = $jws->getPayload();
-
-        // This assertion tells PHPStan that $payload cannot be null from this point on.
-        assert($payload !== null);
-
-        /** @var array<string, mixed> */
-        $result = json_decode($payload, true);
-
-        return $result;
-    }
-
-    /**
-     * MARK: getSingpassJwks
-     * retrieve the jwks from Singpass
-     */
-    private function getSingpassJwks(): JWKSet
-    {
-        try {
-            $config = $this->getOpenIDConfiguration();
-
-            assert(is_string($config['jwks_uri']));
-
-            $response = Http::get($config['jwks_uri'])->throwUnlessStatus(200)->body();
-
-            return JWKSet::createFromJson($response);
-        } catch (Exception) {
-            throw new SingpassJwksException;
-        }
-    }
-
-    /**
-     * MARK: verifyIdToken
-     * Verifies the ID token claims against the client ID.
-     *
-     * @param  array<string, mixed>  $claims  The JWT payload claims to verify.
-     */
-    private function verifyIdToken(array $claims): void
-    {
-        $this->checkClaims($claims, $this->clientId);
-    }
-
-    /**
-     * MARK: verifyAccessToken
-     * Verifies the access token claims against the userinfo endpoint audience.
-     *
-     * @param  array<string, mixed>  $claims  The JWT payload claims to verify.
-     */
-    private function verifyAccessToken(array $claims): void
-    {
-        $config = $this->getOpenIDConfiguration();
-
-        assert(is_string($config['userinfo_endpoint']));
-
-        // set aud based on auth or MyInfo
-        $this->checkClaims($claims, $config['userinfo_endpoint']);
-    }
-
-    /**
-     * MARK: checkClaims
-     * Checks the JWT claims against expected values.
-     *
-     * @param  array<string, mixed>  $claims  The JWT payload claims to validate.
-     * @param  string  $audience  The expected audience claim value.
-     */
-    private function checkClaims(array $claims, string $audience): void
-    {
-        $clock = new NativeClock;
-
-        $config = $this->getOpenIDConfiguration();
-
-        $claimCheckerManager = new ClaimCheckerManager([
-            new AudienceChecker($audience),
-            new IssuedAtChecker($clock, 5),
-            new ExpirationTimeChecker($clock, 5),
-            new IssuerChecker([$config['issuer']]),
-        ]);
-
-        try {
-            $claimCheckerManager->check($claims);
-        } catch (InvalidClaimException $exception) {
-            throw new JwtPayloadException(400, $exception->getMessage());
-        }
     }
 
     /**
