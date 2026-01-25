@@ -450,11 +450,11 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         }
 
         $claims = [
-            'htm' => strtoupper($method),              // HTTP method: GET or POST
-            'htu' => $url,  // Target URL (no query/fragment)
-            'iat' => $issuedAt->unix(),          // Issued at (Unix timestamp in seconds)
-            'exp' => $issuedAt->addMinutes(2)->unix(),          // Expiry (max 2 minutes after iat)
-            'jti' => (string) Str::uuid(),     // Unique identifier (generate new for each request)
+            'htm' => strtoupper($method),               // HTTP method: GET or POST
+            'htu' => $url,                              // Target URL (no query/fragment)
+            'iat' => $issuedAt->unix(),                 // Issued at (Unix timestamp in seconds)
+            'exp' => $issuedAt->addMinutes(2)->unix(),  // Expiry (max 2 minutes after iat)
+            'jti' => (string) Str::uuid(),              // Unique identifier (generate new for each request)
         ];
 
         if ($accessToken) {
