@@ -839,7 +839,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
      */
     private function base64UrlEncode(string $data): string
     {
-        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+        return rtrim(strtr(base64_encode(hash('sha256', $data, true)), '+/', '-_'), '=');
     }
 
     public function validateDpopProof(string $dpopProof, string $expectedMethod, string $expectedUrl, ?string $accessToken = null): array
