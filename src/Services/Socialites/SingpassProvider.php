@@ -420,21 +420,23 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             'iss' => $this->clientId,
             'iat' => $issuedAt->unix(),
             'exp' => $issuedAt->addMinutes(2)->unix(),
-            // 'jti' => (string) Str::uuid(),
+            'jti' => (string) Str::uuid(),
         ]);
 
-        // build jwt
+        assert(is_string($payload));
+
+        // build jws
         $jws = $jwsBuilder->create()
             ->withPayload($payload) // insert claims data
             ->addSignature($signingJwk, [
-                'typ' => 'JWS',
+                'typ' => 'JWT',
                 'alg' => 'ES256',
                 'kid' => $signingJwk->get('kid'),
             ]) // sign it and add the JWS protected header
             ->build();
 
         // serialize to compact format
-        return (new CompactSerializer)->serialize($jws);
+        return (new CompactSerializer)->serialize($jws, 0);
     }
 
     private function generateDPoPProof(string $url, string $method = 'POST', ?string $accessToken = null): string
