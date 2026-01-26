@@ -2,6 +2,14 @@
 
 All notable changes to `singpass-myinfo` will be documented in this file.
 
+## v2.0.0 - 2026-01-26
+
+### What's Changed
+
+* FAPI 2.0 Full Support for Singpass v5 by @shokanshi in https://github.com/shokanshi/singpass-myinfo/pull/16
+
+**Full Changelog**: https://github.com/shokanshi/singpass-myinfo/compare/v1.1.1...v2.0.0
+
 ## v1.1.1 - 2026-01-24
 
 Add exception handling:
@@ -35,6 +43,7 @@ This behavior can always be overwritten by calling `setRedirectUrl()`.
 
 ```bash
 composer require shokanshi/singpass-myinfo
+
 
 
 
