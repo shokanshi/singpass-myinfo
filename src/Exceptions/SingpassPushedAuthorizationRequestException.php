@@ -4,4 +4,4 @@ namespace Shokanshi\SingpassMyInfo\Exceptions;
 
 use Exception;
 
-class SingpassTokenException extends Exception {}
+class SingpassPushedAuthorizationRequestException extends Exception {}

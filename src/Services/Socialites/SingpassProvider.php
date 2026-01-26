@@ -2,11 +2,8 @@
 
 namespace Shokanshi\SingpassMyInfo\Services\Socialites;
 
-use Exception;
-use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\ServerException;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
@@ -17,18 +14,10 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Traits\Conditionable;
-use InvalidArgumentException;
-use Jose\Component\Checker\AlgorithmChecker;
-use Jose\Component\Checker\AudienceChecker;
-use Jose\Component\Checker\ClaimCheckerManager;
-use Jose\Component\Checker\ExpirationTimeChecker;
-use Jose\Component\Checker\HeaderCheckerManager;
-use Jose\Component\Checker\InvalidClaimException;
-use Jose\Component\Checker\IssuedAtChecker;
-use Jose\Component\Checker\IssuerChecker;
 use Jose\Component\Core\AlgorithmManager;
 use Jose\Component\Core\JWK;
 use Jose\Component\Core\JWKSet;
+use Jose\Component\Encryption\Algorithm\ContentEncryption\A256CBCHS512;
 use Jose\Component\Encryption\Algorithm\ContentEncryption\A256GCM;
 use Jose\Component\Encryption\Algorithm\KeyEncryption\ECDHESA128KW;
 use Jose\Component\Encryption\Algorithm\KeyEncryption\ECDHESA192KW;
@@ -40,8 +29,6 @@ use Jose\Component\Signature\Algorithm\ES256;
 use Jose\Component\Signature\Algorithm\ES384;
 use Jose\Component\Signature\Algorithm\ES512;
 use Jose\Component\Signature\JWSBuilder;
-use Jose\Component\Signature\JWSLoader;
-use Jose\Component\Signature\JWSTokenSupport;
 use Jose\Component\Signature\JWSVerifier;
 use Jose\Component\Signature\Serializer\CompactSerializer;
 use Jose\Component\Signature\Serializer\JWSSerializerManager;
@@ -53,14 +40,11 @@ use SensitiveParameter;
 use Shokanshi\SingpassMyInfo\Exceptions\JweInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwkInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwksInvalidException;
-use Shokanshi\SingpassMyInfo\Exceptions\JwtDecodeFailedException;
-use Shokanshi\SingpassMyInfo\Exceptions\JwtPayloadException;
-use Shokanshi\SingpassMyInfo\Exceptions\SingpassJwksException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassMissingRedirectUrlException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassPrivateKeyMissingException;
+use Shokanshi\SingpassMyInfo\Exceptions\SingpassPushedAuthorizationRequestException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassTokenException;
 use stdClass;
-use Symfony\Component\Clock\NativeClock;
 
 final class SingpassProvider extends AbstractProvider implements ProviderInterface
 {
@@ -256,17 +240,46 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             throw new SingpassMissingRedirectUrlException('Redirect url is missing', 400);
         }
 
+        /** @var array<string, string> $config */
         $config = $this->getOpenIDConfiguration();
 
         // Singpass uses space as scope separator
         $this->scopeSeparator = ' ';
 
-        assert(is_string($config['authorization_endpoint']));
+        /** @var string $clientAssertion */
+        $clientAssertion = $this->generateClientAssertion();
 
-        // Singpass uses nonce
-        return $this->with([
-            'nonce' => (string) Str::uuid(),
-        ])->buildAuthUrlFromBase($config['authorization_endpoint'], $state);
+        $dpopProof = $this->generateDPoPProof($config['pushed_authorization_request_endpoint']);
+
+        /** @var array<string, string> $data */
+        $data = $this->getCodeFields($state);
+        $data['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
+        $data['client_assertion'] = $clientAssertion;
+        $data['nonce'] = (string) Str::uuid();
+
+        $response = Http::bodyFormat('form_params')
+            ->contentType('application/x-www-form-urlencoded')
+            ->withHeader('DPoP', $dpopProof)
+            ->post($config['pushed_authorization_request_endpoint'], $data);
+
+        $result = json_decode($response->body(), true);
+
+        assert(is_array($result));
+
+        if ($response->failed()) {
+            assert(is_string($result['error']));
+
+            throw new SingpassPushedAuthorizationRequestException($this->getErrorDescription($result['error']), $response->status());
+        }
+
+        assert(is_string($result['request_uri']));
+
+        $url = $config['authorization_endpoint'].'?'.http_build_query([
+            'client_id' => $this->clientId,
+            'request_uri' => $result['request_uri'],
+        ], '', '&', $this->encodingType);
+
+        return $url;
     }
 
     /**
@@ -287,37 +300,33 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     public function getAccessTokenResponse($code)
     {
         // construct token exchange request
-        try {
-            $clientAssertion = $this->generateClientAssertion();
+        $clientAssertion = $this->generateClientAssertion();
 
-            $response = Http::bodyFormat('form_params')
-                ->contentType('application/x-www-form-urlencoded; charset=ISO-8859-1')
-                ->post($this->getTokenUrl(), [
-                    'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-                    'code' => $code,
-                    'client_id' => $this->clientId,
-                    'grant_type' => 'authorization_code',
-                    'redirect_uri' => $this->redirectUrl,
-                    'client_assertion' => $clientAssertion,
-                    'code_verifier' => $this->request->session()->get('code_verifier'),
-                ]);
+        $dpopProof = $this->generateDPoPProof($this->getTokenUrl());
 
-            return json_decode($response->body(), true);
+        $response = Http::bodyFormat('form_params')
+            ->contentType('application/x-www-form-urlencoded')
+            ->withHeader('DPoP', $dpopProof)
+            ->post($this->getTokenUrl(), [
+                'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+                'code' => $code,
+                'client_id' => $this->clientId,
+                'grant_type' => 'authorization_code',
+                'redirect_uri' => $this->redirectUrl,
+                'client_assertion' => $clientAssertion,
+                'code_verifier' => $this->request->session()->get('code_verifier'),
+            ]);
 
-        } catch (ClientException $requestException) {
-            Log::error($requestException->getMessage());
-            abort(Response::HTTP_BAD_REQUEST, 'Invalid parameter pass in while requesting Singpass token');
-        } catch (ServerException $guzzleException) {
-            // catch if there any internal server error occurred at singpass
-            $errorResponse = $guzzleException->getResponse()->getBody()->getContents();
-            $errorResponse = json_decode($errorResponse, true);
+        $result = json_decode($response->body(), true);
 
-            // Prove to PHPStan that $errorResponse is an array before logging it.
-            assert(is_array($errorResponse));
+        if ($response->failed()) {
+            assert(is_array($result));
+            assert(is_string($result['error']));
 
-            Log::error('Singpass Internal Server Error', $errorResponse);
-            abort(Response::HTTP_BAD_GATEWAY, 'Unable to login using Singpass right now');
+            throw new SingpassTokenException($this->getErrorDescription($result['error']), $response->status());
         }
+
+        return $result;
     }
 
     /**
@@ -333,34 +342,26 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             throw new InvalidStateException;
         }
 
+        /** @var array<string, string> $response */
         $response = $this->getAccessTokenResponse($this->getCode());
 
-        assert(is_array($response));
+        $token = '';
 
-        if (isset($response['error']) && isset($response['error_description']) && is_string($response['error_description'])) {
-            throw new SingpassTokenException(500, $response['error_description']);
-        }
-
-        assert(is_string(Arr::get($response, 'id_token')));
-
-        $idTokenClaims = $this->decodeJWS(Arr::get($response, 'id_token'));
-        $this->verifyIdToken($idTokenClaims);
-
-        // return idTokenClaims as user for Singpass login
         if ($this->getScopes() === ['openid']) {
-            $user = $idTokenClaims;
+            // Singpass login uses id_token
+            $token = Arr::get($response, 'id_token');
+
+            assert(is_string($token));
         } else {
             // Singpass MyInfo uses access_token for claims verification
             $accessToken = Arr::get($response, 'access_token');
 
             assert(is_string($accessToken));
 
-            $accessTokenClaims = $this->decodeJWS($accessToken);
-
-            $this->verifyAccessToken($accessTokenClaims);
-
-            $user = $this->getUserByToken($accessToken);
+            $token = $this->getMyInfoJWE($accessToken);
         }
+
+        $user = $this->getUserByToken($token);
 
         return $this->userInstance($response, $user);
     }
@@ -403,14 +404,13 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             'iss' => $this->clientId,
             'iat' => $issuedAt->unix(),
             'exp' => $issuedAt->addMinutes(2)->unix(),
+            'jti' => (string) Str::uuid(),
         ]);
 
-        if (! $payload) {
-            throw new JwtPayloadException;
-        }
+        assert(is_string($payload));
 
-        // build jwt
-        $jwt = $jwsBuilder->create()
+        // build jws
+        $jws = $jwsBuilder->create()
             ->withPayload($payload) // insert claims data
             ->addSignature($signingJwk, [
                 'typ' => 'JWT',
@@ -419,10 +419,64 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             ]) // sign it and add the JWS protected header
             ->build();
 
-        $serializer = new CompactSerializer; // The serializer
+        // serialize to compact format
+        return (new CompactSerializer)->serialize($jws, 0);
+    }
 
-        // generate base64 encoded JWT client assertion
-        return $serializer->serialize($jwt);
+    private function generateDPoPProof(string $url, string $method = 'POST', ?string $accessToken = null): string
+    {
+        $algorithmManager = new AlgorithmManager([
+            new ES256,
+        ]);
+
+        $jwsBuilder = new JWSBuilder($algorithmManager);
+
+        // JWT issue timestamp
+        $issuedAt = now();
+
+        $signingJwk = null;
+
+        // get the first jwk
+        foreach ($this->getSigningJwks() as $jwk) {
+            $signingJwk = $jwk;
+
+            break;
+        }
+
+        if (! ($signingJwk instanceof JWK)) {
+            throw new JwkInvalidException;
+        }
+
+        $claims = [
+            'htm' => strtoupper($method),               // HTTP method: GET or POST
+            'htu' => $url,                              // Target URL (no query/fragment)
+            'iat' => $issuedAt->unix(),                 // Issued at (Unix timestamp in seconds)
+            'exp' => $issuedAt->addMinutes(2)->unix(),  // Expiry (max 2 minutes after iat)
+            'jti' => (string) Str::uuid(),              // Unique identifier (generate new for each request)
+        ];
+
+        if ($accessToken) {
+            $claims['ath'] = $this->base64UrlEncode($accessToken); // Required only for /userinfo: SHA-256 hash of access token
+        }
+
+        $payload = json_encode($claims);
+
+        $protectedHeader = [
+            'typ' => 'dpop+jwt',
+            'alg' => 'ES256',
+            'jwk' => $signingJwk->toPublic()->all(),
+        ];
+
+        assert(is_string($payload));
+
+        // create and sign jws
+        $jws = $jwsBuilder->create()
+            ->withPayload($payload) // insert claims data
+            ->addSignature($signingJwk, $protectedHeader) // sign it and add the JWS protected header
+            ->build();
+
+        // serialize to compact format
+        return (new CompactSerializer)->serialize($jws, 0);
     }
 
     /**
@@ -434,10 +488,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
      */
     protected function getUserByToken($token): array
     {
-        $jwe = $this->getMyInfoJWE($token);
-
         // decrypt the JWE
-        $content = $this->decryptJWE($jwe);
+        /** @var ?string $content */
+        $content = $this->decryptJWE($token);
 
         if (! is_null($content)) {
             // verify the content of JWT
@@ -452,147 +505,17 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             $json = json_encode($jws);
 
             if ($json) {
-                $result = json_decode($json, true);
+                $claims = json_decode($json, true);
 
-                assert(is_array($result));
+                assert(is_array($claims));
 
-                // This PHPDoc comment tells PHPStan to treat $result as an array with string keys.
-                /** @var array<string, mixed> $result */
-                return $result;
+                // This PHPDoc comment tells PHPStan to treat $claims as an array with string keys.
+                /** @var array<string, mixed> $claims */
+                return $claims;
             }
         }
 
         abort(Response::HTTP_BAD_REQUEST, 'Unable to decrypt JWE');
-    }
-
-    /**
-     * MARK: decodeJWS
-     * Decodes and verifies the ID Token JWS.
-     *
-     * @param  string  $idToken  The raw ID Token string.
-     * @return array<string, mixed> The decoded payload claims.
-     */
-    private function decodeJWS(string $idToken): array
-    {
-        $algorithmManager = new AlgorithmManager([
-            new ES256,
-        ]);
-
-        $jwsVerifier = new JWSVerifier($algorithmManager);
-
-        $serializerManager = new JWSSerializerManager([
-            new CompactSerializer,
-        ]);
-
-        try {
-            $kid = $serializerManager->unserialize($idToken)->getSignature(0)->getProtectedHeaderParameter('kid');
-        } catch (InvalidArgumentException) {
-            throw new JwtDecodeFailedException(500, 'JWT supplied is invalid.');
-        }
-
-        try {
-            /** @var JWKSet $jwks */
-            $jwks = $this->getSingpassJwks();
-
-            assert(is_string($kid) || is_int($kid));
-
-            $key = JWKFactory::createFromKeySet($jwks, $kid);
-        } catch (InvalidArgumentException) {
-            throw new JwtDecodeFailedException(500, 'Keyset does not contain KID from JWT.');
-        }
-
-        $headerCheckerManager = new HeaderCheckerManager([
-            new AlgorithmChecker(['ES256']),
-        ], [
-            new JWSTokenSupport,
-        ]);
-
-        $jwsLoader = new JWSLoader($serializerManager, $jwsVerifier, $headerCheckerManager);
-
-        $jws = $jwsLoader->loadAndVerifyWithKey($idToken, $key, $signature);
-
-        $payload = $jws->getPayload();
-
-        // This assertion tells PHPStan that $payload cannot be null from this point on.
-        assert($payload !== null);
-
-        /** @var array<string, mixed> */
-        $result = json_decode($payload, true);
-
-        return $result;
-    }
-
-    /**
-     * MARK: getSingpassJwks
-     * retrieve the jwks from Singpass
-     */
-    private function getSingpassJwks(): JWKSet
-    {
-        try {
-            $config = $this->getOpenIDConfiguration();
-
-            assert(is_string($config['jwks_uri']));
-
-            $response = Http::get($config['jwks_uri'])->throwUnlessStatus(200)->body();
-
-            return JWKSet::createFromJson($response);
-        } catch (Exception) {
-            throw new SingpassJwksException;
-        }
-    }
-
-    /**
-     * MARK: verifyIdToken
-     * Verifies the ID token claims against the client ID.
-     *
-     * @param  array<string, mixed>  $claims  The JWT payload claims to verify.
-     */
-    private function verifyIdToken(array $claims): void
-    {
-        $this->checkClaims($claims, $this->clientId);
-    }
-
-    /**
-     * MARK: verifyAccessToken
-     * Verifies the access token claims against the userinfo endpoint audience.
-     *
-     * @param  array<string, mixed>  $claims  The JWT payload claims to verify.
-     */
-    private function verifyAccessToken(array $claims): void
-    {
-        $config = $this->getOpenIDConfiguration();
-
-        assert(is_string($config['userinfo_endpoint']));
-
-        // set aud based on auth or MyInfo
-        $this->checkClaims($claims, $config['userinfo_endpoint']);
-    }
-
-    /**
-     * MARK: checkClaims
-     * Checks the JWT claims against expected values.
-     *
-     * @param  array<string, mixed>  $claims  The JWT payload claims to validate.
-     * @param  string  $audience  The expected audience claim value.
-     */
-    private function checkClaims(array $claims, string $audience): void
-    {
-        $clock = new NativeClock;
-
-        $config = $this->getOpenIDConfiguration();
-
-        $claimCheckerManager = new ClaimCheckerManager([
-            new AudienceChecker($audience),
-            new IssuedAtChecker($clock, 5),
-            new ExpirationTimeChecker($clock, 5),
-            new IssuerChecker([$config['issuer']]),
-        ]);
-
-        try {
-            $claimCheckerManager->check($claims);
-        } catch (InvalidClaimException $exception) {
-            throw new JwtPayloadException(400, $exception->getMessage());
-        }
     }
 
     /**
@@ -602,6 +525,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     {
         $algorithmManager = new AlgorithmManager([
             new A256GCM,
+            new A256CBCHS512,
             new ECDHESA128KW,
             new ECDHESA192KW,
             new ECDHESA256KW,
@@ -627,49 +551,48 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
      * @param  array<string, mixed>  $user
      * @return User
      */
-    protected function mapUserToObject($user)
+    protected function mapUserToObject(array $user)
     {
         assert(is_string($user['sub']));
 
         $name = '';
         $email = '';
 
-        // if (array_key_exists('name', $user) && is_array($user['name'])) {
-        if (isset($user['name']) && is_array($user['name'])) {
-            $name = $user['name']['value'];
+        $raw = $user;
+
+        // singpass login
+        if (isset($user['sub_attributes']) && is_array($user['sub_attributes'])) {
+            if (is_string($user['sub_attributes']['name'])) {
+                $name = $user['sub_attributes']['name'];
+            }
+
+            if (is_string($user['sub_attributes']['email'])) {
+                $email = $user['sub_attributes']['email'];
+            }
+
+            $raw = $user['sub_attributes'];
         }
 
-        if (isset($user['email']) && is_array($user['email'])) {
-            $email = $user['email']['value'];
+        // myinfo
+        elseif (isset($user['person_info']) && is_array($user['person_info'])) {
+            if (is_array($user['person_info']['name'])) {
+                $name = $user['person_info']['name']['value'];
+            }
+
+            if (is_array($user['person_info']['email'])) {
+                $email = $user['person_info']['email']['value'];
+            }
+
+            $user['person_info']['id'] = $user['sub'];
+
+            $raw = $user['person_info'];
         }
 
-        $parseUserData = $this->parseUser($user['sub']);
-
-        $user['id'] = $parseUserData['u'] ?? '';
-
-        return (new User)->setRaw($user)->map([
-            'id' => $user['id'],
+        return (new User)->setRaw($raw)->map([
+            'id' => $user['sub'],
             'name' => $name,
             'email' => $email,
         ]);
-    }
-
-    /**
-     * MARK: parseUser
-     * Split the JWT claims sub and convert to a dictionary type
-     *
-     * @return array<string, mixed>
-     */
-    private function parseUser(string $content): array
-    {
-        $processedData = [];
-        $dataRecord = explode(',', $content);
-        foreach ($dataRecord as $record) {
-            $data = explode('=', $record);
-            $processedData[$data[0]] = $data[1] ?? '';
-        }
-
-        return $processedData;
     }
 
     /**
@@ -780,30 +703,31 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
      */
     private function getMyInfoJWE(string $token): string
     {
-        try {
-            $config = $this->getOpenIDConfiguration();
+        $config = $this->getOpenIDConfiguration();
 
-            assert(is_string($config['userinfo_endpoint']));
+        assert(is_string($config['userinfo_endpoint']));
 
-            $response = Http::withToken($token)->get($config['userinfo_endpoint']);
+        $dpopProof = $this->generateDPoPProof($config['userinfo_endpoint'], 'GET', $token);
 
-            $content = $response->body();
+        $response = Http::withHeaders([
+            'Authorization' => "DPoP {$token}",
+            'DPoP' => $dpopProof,
+            'Accept' => 'application/json',
+        ])
+            ->get($config['userinfo_endpoint']);
 
-            if ($response->failed()) {
-                $errorResponse = json_decode($content, true);
+        $content = $response->body();
 
-                assert(is_array($errorResponse));
-                assert(is_string($errorResponse['error_description']));
+        if ($response->failed()) {
+            $errorResponse = json_decode($content, true);
 
-                throw new JweInvalidException($errorResponse['error_description'], $response->status());
-            }
+            assert(is_array($errorResponse));
+            assert(is_string($errorResponse['error']));
 
-            return (string) $content;
-
-        } catch (RequestException $e) {
-            Log::error('Unable to retrieve MyInfo JWE: '.$e->getMessage());
-            abort(Response::HTTP_BAD_GATEWAY, 'Unable to login using Singpass right now');
+            throw new JweInvalidException($this->getErrorDescription($errorResponse['error']), $response->status());
         }
+
+        return (string) $content;
     }
 
     /**
@@ -896,5 +820,28 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         assert($content !== null);
 
         return $content;
+    }
+
+    /**
+     * Base64URL encoding (no padding)
+     */
+    private function base64UrlEncode(string $data): string
+    {
+        return rtrim(strtr(base64_encode(hash('sha256', $data, true)), '+/', '-_'), '=');
+    }
+
+    private function getErrorDescription(string $error): string
+    {
+        return match ($error) {
+            'invalid_request' => 'The request had missing or invalid parameters. This error will also be returned if DPoP header is missing.',
+            'invalid_client' => 'The client assertion is invalid.',
+            'invalid_scope' => 'The scope parameter is invalid.',
+            'invalid_dpop_proof' => 'The DPoP header which you have provided is invalid, expired, or malformed.',
+            'server_error' => 'The server has encountered an unexpected error. Please try again.',
+            'temporarily_unavailable' => 'The server is temporarily unavailable to handle the request. Please try again at a later time.',
+            'unsupported_grant_type' => 'Invalid grant type.',
+            'invalid_grant' => 'The authorization code has expired or the redirect uri is invalid.',
+            default => 'An error has occurred.'
+        };
     }
 }
