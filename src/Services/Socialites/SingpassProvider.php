@@ -54,6 +54,8 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
     protected ?JWKSet $decryptionJwks = null;
 
+    protected string $authenticationContextType = '';
+
     /**
      * Create a new provider instance.
      *
@@ -100,6 +102,18 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     public function setRedirectUrl(string $redirectUrl): self
     {
         $this->redirectUrl = $redirectUrl;
+
+        return $this;
+    }
+
+    /**
+     * MARK: setAuthenticationContextType
+     * Required if you are using Singpass Login app flow. For possible values, refer to:
+     * https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#possible-authentication_context_type-values
+     */
+    public function setAuthenticationContextType(string $context): self
+    {
+        $this->authenticationContextType = $context;
 
         return $this;
     }
@@ -256,6 +270,10 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         $data['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
         $data['client_assertion'] = $clientAssertion;
         $data['nonce'] = (string) Str::uuid();
+
+        if ($this->authenticationContextType) {
+            $data['authentication_context_type'] = $this->authenticationContextType;
+        }
 
         $response = Http::bodyFormat('form_params')
             ->contentType('application/x-www-form-urlencoded')
