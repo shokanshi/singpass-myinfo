@@ -286,8 +286,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
         if ($response->failed()) {
             assert(is_string($result['error']));
+            assert(is_string($result['error_description']));
 
-            throw new SingpassPushedAuthorizationRequestException($this->getErrorDescription($result['error']), $response->status());
+            throw new SingpassPushedAuthorizationRequestException($this->getErrorDescription($result['error']).' '.$result['error_description'], $response->status());
         }
 
         assert(is_string($result['request_uri']));
@@ -340,8 +341,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         if ($response->failed()) {
             assert(is_array($result));
             assert(is_string($result['error']));
+            assert(is_string($result['error_description']));
 
-            throw new SingpassTokenException($this->getErrorDescription($result['error']), $response->status());
+            throw new SingpassTokenException($this->getErrorDescription($result['error']).' '.$result['error_description'], $response->status());
         }
 
         return $result;
