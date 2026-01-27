@@ -12,7 +12,7 @@ The purpose of this Laravel package is to make it very easy for PHP (8.3+) devel
 
 The endpoint for testing FAPI on staging environment is located at [https://stg-id.singpass.gov.sg/fapi/.well-known/openid-configuration](https://stg-id.singpass.gov.sg/fapi/.well-known/openid-configuration).
 
-Create a new application on Singpass development portal if you encounter the error message `The client assertion is invalid.` when you are testing with your existing application on Singpass staging environment.
+If you encounter the error message `The client assertion is invalid.` when you are testing with your existing application on Singpass staging environment, check to ensure that your application is not missing a `purpose`. If it still doesn't work, you can try creating a new application on Singpass Developer Portal.
 
 ## Requirements
 
