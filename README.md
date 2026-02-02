@@ -259,7 +259,35 @@ Redirect the user of the application to the provider's authentication screen.
 
 To retrieve the redirect url, you can call `singpass()->redirect()->getTargetUrl()`.
 
-## Methods Available (Customization)
+---
+
+## Methods Available (Login Apps Only)
+
+### `setAuthenticationContextType(string $context): self`
+
+Required if you are using Singpass Login app flow. For possible values, refer to:
+
+https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#possible-authentication_context_type-values
+
+#### Parameters
+
+| Name       | Type     | Description                                                                                                                                                                | Default                                                       |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `$context` | `string` | A value selected from a predefined list describing the type of transaction that your user is performing the authentication for. This will be used for anti-fraud purposes. | _required only for Singpass login and not allowed for MyInfo_ |
+
+---
+
+### `setAuthenticationContextMessage(string $message): self`
+
+Optional string with a maximum length of 100 characters. Allowed only for Login apps.
+
+https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#singpass-specific-parameters
+
+| Name       | Type     | Description                                                                                                                                                | Default                                                        |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `$message` | `string` | A string value providing context on what users are performing authentication for. This will be displayed to users when they are performing authentication. | _optional, allowed only for Login apps and max 100 characters_ |
+
+## Methods Available (Login & MyInfo Apps)
 
 If you have a multitenancy application and would like to allow onboarding of individual tenant onto Singpass, the following methods will be useful to you. You can setup custom controllers (like the [example](#example) above) to handle the aspect of multitenancy with them.
 
@@ -286,32 +314,6 @@ Overwrite the value of `SINGPASS_DISCOVERY_ENDPOINT` defined in the `.env` file 
 | Name   | Type     | Description                        | Default    |
 | ------ | -------- | ---------------------------------- | ---------- |
 | `$url` | `string` | Singpass openid discovery endpoint | _required_ |
-
----
-
-### `setAuthenticationContextType(string $context): self`
-
-Required if you are using Singpass Login app flow. For possible values, refer to:
-
-https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#possible-authentication_context_type-values
-
-#### Parameters
-
-| Name       | Type     | Description                                                                                                                                                                | Default                                                       |
-| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `$context` | `string` | A value selected from a predefined list describing the type of transaction that your user is performing the authentication for. This will be used for anti-fraud purposes. | _required only for Singpass login and not allowed for MyInfo_ |
-
----
-
-### `setAuthenticationContextMessage(string $message): self`
-
-Optional string with a maximum length of 100 characters. Allowed only for Login apps.
-
-https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#singpass-specific-parameters
-
-| Name       | Type     | Description                                                                                                                                                | Default                                                        |
-| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `$message` | `string` | A string value providing context on what users are performing authentication for. This will be displayed to users when they are performing authentication. | _optional, allowed only for Login apps and max 100 characters_ |
 
 ---
 
