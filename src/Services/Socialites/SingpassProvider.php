@@ -56,6 +56,8 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
     protected string $authenticationContextType = '';
 
+    protected string $authenticationContextMessage = '';
+
     /**
      * Create a new provider instance.
      *
@@ -114,6 +116,18 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     public function setAuthenticationContextType(string $context): self
     {
         $this->authenticationContextType = $context;
+
+        return $this;
+    }
+
+    /**
+     * MARK: setAuthenticationContextMessage
+     * String, with a maximum length of 100 characters. Optional, and allowed only for Login apps.
+     * https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#singpass-specific-parameters
+     */
+    public function setAuthenticationContextMessage(string $message): self
+    {
+        $this->authenticationContextMessage = $message;
 
         return $this;
     }
@@ -273,6 +287,10 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
         if ($this->authenticationContextType) {
             $data['authentication_context_type'] = $this->authenticationContextType;
+
+            if ($this->authenticationContextMessage) {
+                $data['authentication_context_message'] = $this->authenticationContextMessage;
+            }
         }
 
         $response = Http::bodyFormat('form_params')
