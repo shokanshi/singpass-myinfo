@@ -54,6 +54,10 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
     protected ?JWKSet $decryptionJwks = null;
 
+    protected string $authenticationContextType = '';
+
+    protected string $authenticationContextMessage = '';
+
     /**
      * Create a new provider instance.
      *
@@ -100,6 +104,30 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     public function setRedirectUrl(string $redirectUrl): self
     {
         $this->redirectUrl = $redirectUrl;
+
+        return $this;
+    }
+
+    /**
+     * MARK: setAuthenticationContextType
+     * Required if you are using Singpass Login app flow. For possible values, refer to:
+     * https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#possible-authentication_context_type-values
+     */
+    public function setAuthenticationContextType(string $context): self
+    {
+        $this->authenticationContextType = $context;
+
+        return $this;
+    }
+
+    /**
+     * MARK: setAuthenticationContextMessage
+     * String, with a maximum length of 100 characters. Optional, and allowed only for Login apps.
+     * https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#singpass-specific-parameters
+     */
+    public function setAuthenticationContextMessage(string $message): self
+    {
+        $this->authenticationContextMessage = $message;
 
         return $this;
     }
@@ -257,6 +285,14 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         $data['client_assertion'] = $clientAssertion;
         $data['nonce'] = (string) Str::uuid();
 
+        if ($this->authenticationContextType) {
+            $data['authentication_context_type'] = $this->authenticationContextType;
+
+            if ($this->authenticationContextMessage) {
+                $data['authentication_context_message'] = $this->authenticationContextMessage;
+            }
+        }
+
         $response = Http::bodyFormat('form_params')
             ->contentType('application/x-www-form-urlencoded')
             ->withHeader('DPoP', $dpopProof)
@@ -268,8 +304,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
         if ($response->failed()) {
             assert(is_string($result['error']));
+            assert(is_string($result['error_description']));
 
-            throw new SingpassPushedAuthorizationRequestException($this->getErrorDescription($result['error']), $response->status());
+            throw new SingpassPushedAuthorizationRequestException($this->getErrorDescription($result['error']).' '.$result['error_description'], $response->status());
         }
 
         assert(is_string($result['request_uri']));
@@ -322,8 +359,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         if ($response->failed()) {
             assert(is_array($result));
             assert(is_string($result['error']));
+            assert(is_string($result['error_description']));
 
-            throw new SingpassTokenException($this->getErrorDescription($result['error']), $response->status());
+            throw new SingpassTokenException($this->getErrorDescription($result['error']).' '.$result['error_description'], $response->status());
         }
 
         return $result;
@@ -345,25 +383,32 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         /** @var array<string, string> $response */
         $response = $this->getAccessTokenResponse($this->getCode());
 
-        $token = '';
+        $idToken = Arr::get($response, 'id_token');
 
-        if ($this->getScopes() === ['openid']) {
-            // Singpass login uses id_token
-            $token = Arr::get($response, 'id_token');
+        assert(is_string($idToken));
 
-            assert(is_string($token));
-        } else {
+        $userFromIdToken = $this->getUserByToken($idToken);
+
+        // if Singpass MyInfo flow or contain scopes: name, email, mobileno
+        // ! for login flow, sub_attributes retrieved from id_token does not include email and mobileno so need to use myinfo to retrieve
+        // ! seems to be a bug, waiting for singpass to revert, for now rely on myinfo to retrieve those info and to ignore the name from
+        // ! sub_attributes cos the name is different from the one returned from myinfo
+        if (! $this->authenticationContextType || $this->hasProfileScopes(['name', 'email', 'mobileno'])) {
             // Singpass MyInfo uses access_token for claims verification
             $accessToken = Arr::get($response, 'access_token');
 
             assert(is_string($accessToken));
 
-            $token = $this->getMyInfoJWE($accessToken);
+            $userFromAccessToken = $this->getMyInfoJWE($accessToken);
+            $user = $this->getUserByToken($userFromAccessToken);
+
+            // merge person_info into $userFromIdToken
+            if (isset($user['person_info'])) {
+                $userFromIdToken['person_info'] = $user['person_info'];
+            }
         }
 
-        $user = $this->getUserByToken($token);
-
-        return $this->userInstance($response, $user);
+        return $this->userInstance($response, $userFromIdToken);
     }
 
     /**
@@ -555,38 +600,22 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
     {
         assert(is_string($user['sub']));
 
-        $name = '';
-        $email = '';
-
-        $raw = $user;
-
-        // singpass login
-        if (isset($user['sub_attributes']) && is_array($user['sub_attributes'])) {
-            if (is_string($user['sub_attributes']['name'])) {
-                $name = $user['sub_attributes']['name'];
-            }
-
-            if (is_string($user['sub_attributes']['email'])) {
-                $email = $user['sub_attributes']['email'];
-            }
-
-            $raw = $user['sub_attributes'];
+        if (Arr::has($user, 'sub_attributes.name') && ! Arr::has($user, 'person_info.name.value')) {
+            Arr::set($user, 'person_info.name.value', Arr::get($user, 'sub_attributes.name'));
         }
 
-        // myinfo
-        elseif (isset($user['person_info']) && is_array($user['person_info'])) {
-            if (is_array($user['person_info']['name'])) {
-                $name = $user['person_info']['name']['value'];
-            }
-
-            if (is_array($user['person_info']['email'])) {
-                $email = $user['person_info']['email']['value'];
-            }
-
-            $user['person_info']['id'] = $user['sub'];
-
-            $raw = $user['person_info'];
+        if (Arr::has($user, 'sub_attributes.email') && ! Arr::has($user, 'person_info.email.value')) {
+            Arr::set($user, 'person_info.email.value', Arr::get($user, 'sub_attributes.email'));
         }
+
+        if (Arr::has($user, 'sub_attributes.identity_number')) {
+            Arr::set($user, 'person_info.identity_number.value', Arr::get($user, 'sub_attributes.identity_number'));
+        }
+
+        $name = Arr::get($user, 'person_info.name.value');
+        $email = Arr::get($user, 'person_info.email.value');
+
+        $raw = (array) ($user['person_info'] ?? []);
 
         return (new User)->setRaw($raw)->map([
             'id' => $user['sub'],
@@ -843,5 +872,17 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             'invalid_grant' => 'The authorization code has expired or the redirect uri is invalid.',
             default => 'An error has occurred.'
         };
+    }
+
+    /**
+     * MARK: hasProfileScopes
+     *
+     * @param  array<int, string>  $scopes
+     */
+    private function hasProfileScopes(array $scopes): bool
+    {
+        $scopeCollection = Str::of(implode(' ', $this->getScopes()))->explode(' ');
+
+        return $scopeCollection->intersect($scopes)->isNotEmpty();
     }
 }

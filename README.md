@@ -33,7 +33,10 @@ composer require shokanshi/singpass-myinfo
 
 ## Setting Up Private Keys
 
+<details>
+<summary>
 The package will attempt to load the private keys from `storage/app`.
+</summary>
 
 **❌ DO NOT** store the private keys in `./storage/app/public` folder! They will be publicly accessible!
 
@@ -155,9 +158,14 @@ return [
 ];
 ```
 
+</details>
+
 ## Routes
 
+<details>
+<summary>
 There are three default routes that you can customize, namely:
+</summary>
 
 ```ini
 SINGPASS_AUTHORIZATION_ENDPOINT=sp/login
@@ -181,9 +189,14 @@ If you prefer the authentication url to be `https://your-company.com/sp/auth`, y
 SINGPASS_AUTHORIZATION_URL=sp/auth
 ```
 
+</details>
+
 ## Custom Controllers
 
+<details>
+<summary>
 You can customize the default controller via the `singpass-myinfo.php` config file.
+</summary>
 
 ```php
 'authorization_endpoint_controller' => GetAuthorizationController::class,
@@ -236,8 +249,14 @@ class MySingpassAuthController extends Controller
 
 1. For the above example, the same customization has to be applied to `callback_endpoint_controller` and `jwks_endpoint_controller` since the endpoint is now based on environment of the application.
 2. The above is just an example to illustrate how you may customize the controllers.
+ </details>
 
 ## Using the Socialite Provider
+
+<details>
+<summary>
+Base methods to start using the Socialite provider
+</summary>
 
 ### `singpass(): SingpassProvider`
 
@@ -251,10 +270,6 @@ In the event where `singpass()` is not available (likely in conflict with anothe
 
 Return the Socialite user object.
 
-## Methods Available
-
-If you have a multitenancy application and would like to allow onboarding of individual tenant onto Singpass, the following methods will be useful to you. You can setup custom controllers (like the [example](#example) above) to handle the aspect of multitenancy with them.
-
 ---
 
 ### `redirect(): \Illuminate\Http\RedirectResponse`
@@ -262,6 +277,50 @@ If you have a multitenancy application and would like to allow onboarding of ind
 Redirect the user of the application to the provider's authentication screen.
 
 To retrieve the redirect url, you can call `singpass()->redirect()->getTargetUrl()`.
+
+---
+
+</details>
+
+## Methods Available
+
+<details>
+<summary>
+Login Apps Only
+</summary>
+
+### `setAuthenticationContextType(string $context): self`
+
+Required if you are using Singpass Login app flow. For possible values, refer to:
+
+https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#possible-authentication_context_type-values
+
+#### Parameters
+
+| Name       | Type     | Description                                                                                                                                                                | Default                                                       |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `$context` | `string` | A value selected from a predefined list describing the type of transaction that your user is performing the authentication for. This will be used for anti-fraud purposes. | _required only for Singpass login and not allowed for MyInfo_ |
+
+---
+
+### `setAuthenticationContextMessage(string $message): self`
+
+Optional string with a maximum length of 100 characters. Allowed only for Login apps.
+
+https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#singpass-specific-parameters
+
+| Name       | Type     | Description                                                                                                                                                | Default                                                        |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `$message` | `string` | A string value providing context on what users are performing authentication for. This will be displayed to users when they are performing authentication. | _optional, allowed only for Login apps and max 100 characters_ |
+
+</details>
+
+<details>
+<summary>
+Login & MyInfo Apps
+</summary>
+
+If you have a multitenancy application and would like to allow onboarding of individual tenant onto Singpass, the following methods will be useful to you. You can setup custom controllers (like the [example](#example) above) to handle the aspect of multitenancy with them.
 
 ---
 
@@ -459,6 +518,8 @@ class MySingpassJwksEndpointController extends Controller
     }
 }
 ```
+
+</details>
 
 ## Changelog
 
