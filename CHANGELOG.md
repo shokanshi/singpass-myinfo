@@ -2,6 +2,12 @@
 
 All notable changes to `singpass-myinfo` will be documented in this file.
 
+## v2.0.1 - 2026-02-02
+
+Fixed an issue where login requests were missing the `authentication_context_type` and `authentication_context_message` parameters, causing login flow to switch to MyInfo flow and throwing errors when the user.identity scope is requested.
+
+**Note**: The `sub_attributes` response currently deviates from the Singpass FAPI specification; this has been escalated to Singpass and are awaiting clarification, no operational impact expected.
+
 ## v2.0.0 - 2026-01-26
 
 ### What's Changed
@@ -43,6 +49,7 @@ This behavior can always be overwritten by calling `setRedirectUrl()`.
 
 ```bash
 composer require shokanshi/singpass-myinfo
+
 
 
 
