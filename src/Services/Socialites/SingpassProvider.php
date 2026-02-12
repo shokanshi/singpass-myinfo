@@ -608,6 +608,10 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
             Arr::set($user, 'person_info.email.value', Arr::get($user, 'sub_attributes.email'));
         }
 
+        if (Arr::has($user, 'sub_attributes.mobileno') && ! Arr::has($user, 'person_info.mobileno.value')) {
+            Arr::set($user, 'person_info.mobileno.nbr.value', Arr::get($user, 'sub_attributes.mobileno'));
+        }
+
         if (Arr::has($user, 'sub_attributes.identity_number')) {
             Arr::set($user, 'person_info.uinfin.value', Arr::get($user, 'sub_attributes.identity_number'));
         }
