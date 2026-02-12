@@ -383,17 +383,15 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
         /** @var array<string, string> $response */
         $response = $this->getAccessTokenResponse($this->getCode());
 
-        $idToken = Arr::get($response, 'id_token');
+        $user = null;
 
-        assert(is_string($idToken));
+        // login flow
+        if ($this->authenticationContextType) {
+            $idToken = Arr::get($response, 'id_token');
 
-        $userFromIdToken = $this->getUserByToken($idToken);
-
-        // if Singpass MyInfo flow or contain scopes: name, email, mobileno
-        // ! for login flow, sub_attributes retrieved from id_token does not include email and mobileno so need to use myinfo to retrieve
-        // ! seems to be a bug, waiting for singpass to revert, for now rely on myinfo to retrieve those info and to ignore the name from
-        // ! sub_attributes cos the name is different from the one returned from myinfo
-        if (! $this->authenticationContextType || $this->hasProfileScopes(['name', 'email', 'mobileno'])) {
+            assert(is_string($idToken));
+            $user = $this->getUserByToken($idToken);
+        } else {
             // Singpass MyInfo uses access_token for claims verification
             $accessToken = Arr::get($response, 'access_token');
 
@@ -401,14 +399,9 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
             $userFromAccessToken = $this->getMyInfoJWE($accessToken);
             $user = $this->getUserByToken($userFromAccessToken);
-
-            // merge person_info into $userFromIdToken
-            if (isset($user['person_info'])) {
-                $userFromIdToken['person_info'] = $user['person_info'];
-            }
         }
 
-        return $this->userInstance($response, $userFromIdToken);
+        return $this->userInstance($response, $user);
     }
 
     /**
