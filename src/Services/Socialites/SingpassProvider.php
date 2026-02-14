@@ -14,6 +14,12 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Traits\Conditionable;
+use Jose\Component\Checker\AudienceChecker;
+use Jose\Component\Checker\ClaimCheckerManager;
+use Jose\Component\Checker\ExpirationTimeChecker;
+use Jose\Component\Checker\InvalidClaimException;
+use Jose\Component\Checker\IssuedAtChecker;
+use Jose\Component\Checker\IssuerChecker;
 use Jose\Component\Core\AlgorithmManager;
 use Jose\Component\Core\JWK;
 use Jose\Component\Core\JWKSet;
@@ -40,11 +46,13 @@ use SensitiveParameter;
 use Shokanshi\SingpassMyInfo\Exceptions\JweInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwkInvalidException;
 use Shokanshi\SingpassMyInfo\Exceptions\JwksInvalidException;
+use Shokanshi\SingpassMyInfo\Exceptions\JwtPayloadException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassMissingRedirectUrlException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassPrivateKeyMissingException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassPushedAuthorizationRequestException;
 use Shokanshi\SingpassMyInfo\Exceptions\SingpassTokenException;
 use stdClass;
+use Symfony\Component\Clock\NativeClock;
 
 final class SingpassProvider extends AbstractProvider implements ProviderInterface
 {
@@ -385,13 +393,15 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
         $user = null;
 
-        // login flow
-        if ($this->authenticationContextType) {
-            $idToken = Arr::get($response, 'id_token');
+        $idToken = Arr::get($response, 'id_token');
 
-            assert(is_string($idToken));
-            $user = $this->getUserByToken($idToken);
-        } else {
+        assert(is_string($idToken));
+        $user = $this->getUserByToken($idToken);
+
+        $this->checkClaims($user, $this->clientId);
+
+        // myinfo flow
+        if (! $this->authenticationContextType) {
             // Singpass MyInfo uses access_token for claims verification
             $accessToken = Arr::get($response, 'access_token');
 
@@ -519,7 +529,7 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
 
     /**
      * MARK: getUserByToken
-     * Retrieves the user data from the MyInfo API using the provided token.
+     * Retrieves the user data using the provided token.
      *
      * @param  string  $token  The access token from Singpass.
      * @return array<string, mixed> The user's data as an associative array.
@@ -876,10 +886,37 @@ final class SingpassProvider extends AbstractProvider implements ProviderInterfa
      *
      * @param  array<int, string>  $scopes
      */
-    private function hasProfileScopes(array $scopes): bool
+    public function hasProfileScopes(array $scopes): bool
     {
         $scopeCollection = Str::of(implode(' ', $this->getScopes()))->explode(' ');
 
         return $scopeCollection->intersect($scopes)->isNotEmpty();
+    }
+
+    /**
+     * MARK: checkClaims
+     * Checks the JWT claims against expected values.
+     *
+     * @param  array<string, mixed>  $claims  The JWT payload claims to validate.
+     * @param  string  $audience  The expected audience claim value.
+     */
+    private function checkClaims(array $claims, string $audience): void
+    {
+        $clock = new NativeClock;
+
+        $config = $this->getOpenIDConfiguration();
+
+        $claimCheckerManager = new ClaimCheckerManager([
+            new AudienceChecker($audience),
+            new IssuedAtChecker($clock, 5),
+            new ExpirationTimeChecker($clock, 5),
+            new IssuerChecker([$config['issuer']]),
+        ]);
+
+        try {
+            $claimCheckerManager->check($claims);
+        } catch (InvalidClaimException $exception) {
+            throw new JwtPayloadException(400, $exception->getMessage());
+        }
     }
 }
