@@ -2,6 +2,14 @@
 
 All notable changes to `singpass-myinfo` will be documented in this file.
 
+## v2.0.2 - 2026-02-14
+
+### What's Changed
+
+* Update Login / MyInfo by @shokanshi in https://github.com/shokanshi/singpass-myinfo/pull/21
+
+**Full Changelog**: https://github.com/shokanshi/singpass-myinfo/compare/v2.0.1...v2.0.2
+
 ## v2.0.1 - 2026-02-02
 
 Fixed an issue where login requests were missing the `authentication_context_type` and `authentication_context_message` parameters, causing login flow to switch to MyInfo flow and throwing errors when the user.identity scope is requested.
@@ -49,6 +57,7 @@ This behavior can always be overwritten by calling `setRedirectUrl()`.
 
 ```bash
 composer require shokanshi/singpass-myinfo
+
 
 
 
