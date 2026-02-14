@@ -4,13 +4,14 @@
 [![Total Downloads](https://img.shields.io/packagist/dt/shokanshi/singpass-myinfo.svg?style=flat-square)](https://packagist.org/packages/shokanshi/singpass-myinfo)
 [![PHP Version](https://img.shields.io/packagist/php-v/shokanshi/singpass-myinfo)](https://packagist.org/packages/shokanshi/singpass-myinfo)
 
-The purpose of this Laravel package is to make it very easy for PHP (8.3+) developers to integrate [Singpass MyInfo v5](https://docs.developer.singpass.gov.sg/docs/products/myinfo/introduction).
+The purpose of this Laravel package is to make it very easy for PHP (8.3+) developers to integrate [Singpass MyInfo v5 (FAPI 2.0)](https://docs.developer.singpass.gov.sg/docs/technical-specifications/integration-guide).
 
-[FAPI 2.0](https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api) support is now available.
+## Singpass OpenID Provider Configuration:
 
-**ℹ️ Note:** Production environment for FAPI is currently not yet ready. It is expected to be ready in mid-Feb 2026. If you are integrating now, please use [v1.1.1](https://github.com/shokanshi/singpass-myinfo/releases/tag/v1.1.1).
-
-The endpoint for testing FAPI on staging environment is located at [https://stg-id.singpass.gov.sg/fapi/.well-known/openid-configuration](https://stg-id.singpass.gov.sg/fapi/.well-known/openid-configuration).
+| Environment | Discovery Endpoint                                                   |
+| ----------- | -------------------------------------------------------------------- |
+| Staging     | https://stg-id.singpass.gov.sg/fapi/.well-known/openid-configuration |
+| Production  | https://id.singpass.gov.sg/fapi/.well-known/openid-configuration     |
 
 If you encounter the error message `The client assertion is invalid.` when you are testing with your existing application on Singpass staging environment, check to ensure that your application is not missing a `purpose`. If it still doesn't work, you can try creating a new application on Singpass Developer Portal.
 
@@ -31,6 +32,74 @@ You can install the package via composer:
 composer require shokanshi/singpass-myinfo
 ```
 
+## Configuration
+
+You can publish the config file with:
+
+```bash
+php artisan vendor:publish --tag="singpass-myinfo-config"
+```
+
+<details>
+<summary>
+This is the content of the published config file:
+</summary>
+```php
+return [
+    // default to Singpass staging
+    'openid_discovery_endpoint' => env('SINGPASS_OPENID_DISCOVERY_ENDPOINT', 'https://stg-id.singpass.gov.sg/.well-known/openid-configuration'),
+
+    'client_id' => env('SINGPASS_CLIENT_ID'),
+
+    // this setting is here because socialite requires it to be defined. SingpassProvider will always overwrite it to route('singpass.callback')
+    'redirect' => env('SINGPASS_REDIRECT_URI'),
+
+    // the private key file that your application will be used for signing
+    'signing_private_key_passphrase' => env('SINGPASS_SIGNING_PRIVATE_KEY_PASSPHRASE', ''),
+    'signing_private_key_file' => env('SINGPASS_SIGNING_PRIVATE_KEY_FILE'),
+
+    // the private key file that your application will be used for decryption
+    'decryption_private_key_passphrase' => env('SINGPASS_DECRYPTION_PRIVATE_KEY_PASSPHRASE', ''),
+    'decryption_private_key_file' => env('SINGPASS_DECRYPTION_PRIVATE_KEY_FILE'),
+
+    // used by socialite. leave it empty since Singpass uses client assertion
+    'client_secret' => '',
+
+    // default to Singpass login if SINGPASS_SCOPES is blank. for MyInfo, define additional scopes that are space separated
+    // e.g. "openid uinfin name sex race dob birthcountry passportnumber"
+    'scopes' => env('SINGPASS_SCOPES', 'openid'),
+
+    // this is the route that will be used to redirect to Singpass login page
+    // you can customize this in .env file
+    'authorization_endpoint' => env('SINGPASS_AUTHORIZATION_ENDPOINT', 'sp/login'),
+
+    // the controller that will handle the redirection to Singpass login page
+    // to customize, you can replace it with your own controller in this config file
+    'authorization_endpoint_controller' => GetAuthorizationController::class,
+
+    // this is the route that will be called when Singpass redirects back after authentication
+    // you can customize this in .env file
+    'callback_endpoint' => env('SINGPASS_CALLBACK_ENDPOINT', 'sp/callback'),
+
+    // the controller that will handle the callback from Singpass after login
+    // to customize, you can replace it with your own controller in this config file
+    'callback_endpoint_controller' => GetCallbackController::class,
+
+    // this is the url that Singpass will call to retrieve your public jwks for signing and encryption
+    // you can customize this in .env file
+    'jwks_endpoint' => env('SINGPASS_JWKS_ENDPOINT', 'sp/jwks'),
+
+    // the controller that Singpass portal will use to retrieve your application jwks
+    // typically you won't want to change it unless you want to implement key rotation logic
+    'jwks_endpoint_controller' => GetJwksController::class,
+
+];
+
+````
+
+</details>
+
+
 ## Setting Up Private Keys
 
 <details>
@@ -46,7 +115,7 @@ Create private key for signing:
 
 ```bash
 openssl ecparam -name prime256v1 -genkey -noout -out ./storage/app/secure/your-singpass-signing-private.pem
-```
+````
 
 Create private key for decryption:
 
@@ -97,68 +166,15 @@ https://your-company.com/sp/jwks
 https://your-company.com/sp/login
 ```
 
-## Configuration
-
-You can publish the config file with:
-
-```bash
-php artisan vendor:publish --tag="singpass-myinfo-config"
-```
-
-This is the content of the published config file:
-
-```php
-return [
-    // default to Singpass staging
-    'openid_discovery_endpoint' => env('SINGPASS_OPENID_DISCOVERY_ENDPOINT', 'https://stg-id.singpass.gov.sg/.well-known/openid-configuration'),
-
-    'client_id' => env('SINGPASS_CLIENT_ID'),
-
-    // this setting is here because socialite requires it to be defined. SingpassProvider will always overwrite it to route('singpass.callback')
-    'redirect' => env('SINGPASS_REDIRECT_URI'),
-
-    // the private key file that your application will be used for signing
-    'signing_private_key_passphrase' => env('SINGPASS_SIGNING_PRIVATE_KEY_PASSPHRASE', ''),
-    'signing_private_key_file' => env('SINGPASS_SIGNING_PRIVATE_KEY_FILE'),
-
-    // the private key file that your application will be used for decryption
-    'decryption_private_key_passphrase' => env('SINGPASS_DECRYPTION_PRIVATE_KEY_PASSPHRASE', ''),
-    'decryption_private_key_file' => env('SINGPASS_DECRYPTION_PRIVATE_KEY_FILE'),
-
-    // used by socialite. leave it empty since Singpass uses client assertion
-    'client_secret' => '',
-
-    // default to Singpass login if SINGPASS_SCOPES is blank. for MyInfo, define additional scopes that are space separated
-    // e.g. "openid uinfin name sex race dob birthcountry passportnumber"
-    'scopes' => env('SINGPASS_SCOPES', 'openid'),
-
-    // this is the route that will be used to redirect to Singpass login page
-    // you can customize this in .env file
-    'authorization_endpoint' => env('SINGPASS_AUTHORIZATION_ENDPOINT', 'sp/login'),
-
-    // the controller that will handle the redirection to Singpass login page
-    // to customize, you can replace it with your own controller in this config file
-    'authorization_endpoint_controller' => GetAuthorizationController::class,
-
-    // this is the route that will be called when Singpass redirects back after authentication
-    // you can customize this in .env file
-    'callback_endpoint' => env('SINGPASS_CALLBACK_ENDPOINT', 'sp/callback'),
-
-    // the controller that will handle the callback from Singpass after login
-    // to customize, you can replace it with your own controller in this config file
-    'callback_endpoint_controller' => GetCallbackController::class,
-
-    // this is the url that Singpass will call to retrieve your public jwks for signing and encryption
-    // you can customize this in .env file
-    'jwks_endpoint' => env('SINGPASS_JWKS_ENDPOINT', 'sp/jwks'),
-
-    // the controller that Singpass portal will use to retrieve your application jwks
-    // typically you won't want to change it unless you want to implement key rotation logic
-    'jwks_endpoint_controller' => GetJwksController::class,
-];
-```
-
 </details>
+
+## Response Returned From Singpass Login / MyInfo
+
+Even though Singpass Login and MyInfo have 2 separate structure for returning user profile, this package will format Login structure into MyInfo structure so that it makes it less confusing to retrieve the information.
+
+Login / MyInfo sample data: https://public.cloud.myinfo.gov.sg/myinfo/api/myinfo-kyc-v4.0.html#operation/getperson
+
+For data catalog of MyInfo: https://docs.developer.singpass.gov.sg/docs/data-catalog-myinfo/catalog/personal
 
 ## Routes
 
@@ -293,7 +309,7 @@ Login Apps Only
 
 Required if you are using Singpass Login app flow. For possible values, refer to:
 
-https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#possible-authentication_context_type-values
+https://docs.developer.singpass.gov.sg/docs/technical-specifications/integration-guide/1.-authorization-request#possible-authentication_context_type-values
 
 #### Parameters
 
@@ -307,7 +323,7 @@ https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentica
 
 Optional string with a maximum length of 100 characters. Allowed only for Login apps.
 
-https://docs.developer.singpass.gov.sg/docs/upcoming-changes/fapi-2.0-authentication-api/integration-guide/1.-authorization-request#singpass-specific-parameters
+https://docs.developer.singpass.gov.sg/docs/technical-specifications/integration-guide/1.-authorization-request#singpass-specific-parameters
 
 | Name       | Type     | Description                                                                                                                                                | Default                                                        |
 | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
