@@ -2,6 +2,10 @@
 
 All notable changes to `singpass-myinfo` will be documented in this file.
 
+## v2.0.3 - 2026-03-19
+
+Support Laravel 13
+
 ## v2.0.1 - 2026-02-02
 
 Fixed an issue where login requests were missing the `authentication_context_type` and `authentication_context_message` parameters, causing login flow to switch to MyInfo flow and throwing errors when the user.identity scope is requested.
@@ -49,6 +53,7 @@ This behavior can always be overwritten by calling `setRedirectUrl()`.
 
 ```bash
 composer require shokanshi/singpass-myinfo
+
 
 
 
