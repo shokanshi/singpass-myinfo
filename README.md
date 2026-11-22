@@ -44,9 +44,11 @@ php artisan vendor:publish --tag="singpass-myinfo-config"
 <summary>
 This is the content of the published config file:
 </summary>
+
 ```php
 return [
     // default to Singpass staging
+    
     'openid_discovery_endpoint' => env('SINGPASS_OPENID_DISCOVERY_ENDPOINT', 'https://stg-id.singpass.gov.sg/.well-known/openid-configuration'),
 
     'client_id' => env('SINGPASS_CLIENT_ID'),
@@ -92,11 +94,8 @@ return [
     // the controller that Singpass portal will use to retrieve your application jwks
     // typically you won't want to change it unless you want to implement key rotation logic
     'jwks_endpoint_controller' => GetJwksController::class,
-
 ];
-
 ````
-
 </details>
 
 
